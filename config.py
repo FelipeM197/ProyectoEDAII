@@ -1,184 +1,175 @@
+import pygame
+
 """
-ARCHIVO DE CONFIGURACIÓN GLOBAL
--------------------------------
-1. Cambiar VIDA/DAÑO de Jugadores ............ Ir a Línea 24
-2. Cambiar VIDA/DAÑO del JEFE (Trump) ........ Ir a Línea 41
-3. Cambiar PROBABILIDAD DE ACIERTO (0.8) ..... Ir a Línea 54
-4. Cambiar Daño CRÍTICO o TROPIEZO ........... Ir a Línea 62
-5. Cambiar Nombres/IDs de Efectos ............ Ir a Línea 70
-6. Modificar HABILIDADES (Costos/Efectos) .... Ir a Línea 86
-7. Modificar FRASES/DIÁLOGOS ................. Ir a Línea 145 (TODO)
+ARCHIVO DE CONFIGURACIÓN (CONSTANTES)
 """
 
 # ==========================================
-# 1. CONFIGURACIÓN TÉCNICA
+# 1. CONFIGURACIÓN DE PANTALLA Y SISTEMA
 # ==========================================
-ANCHO = 800
-ALTO = 600
-FPS = 60
-TITULO = "Rescate en el Norte" 
+# Resolución de la ventana. 
+# [MODIFICACIÓN]: Si cambian esto, asegúrense de que las imágenes de fondo
+# tengan la misma proporción para que no se vean estiradas.
+ANCHO = 1280
+ALTO = 720
+
+TITULO = "Rescate en el Norte: Operación Libertad"
+FPS = 60  # Fotogramas por segundo (Velocidad del juego)
 
 # ==========================================
-# 2. ESTADÍSTICAS BASE DE PERSONAJES
+# 2. COLORES (Formato RGB)
 # ==========================================
-"""
-Para cambiar la vida o energía base, edita esta sección.
-"""
-# JUGADOR 1 (Ofensivo - Daño)
-P1_NOMBRE = "Soldado Daño"
-P1_VIDA_MAX = 100      
-P1_ATAQUE = 20         
-P1_ENERGIA_MAX = 100   
-
-# JUGADOR 2 (Defensivo - Tanque)
-P2_NOMBRE = "Soldado Tanque"
-P2_VIDA_MAX = 150      
-P2_ATAQUE = 15         
-P2_ENERGIA_MAX = 150   
+# Se usan para textos y figuras geométricas si fallan las imágenes.
+BLANCO = (255, 255, 255)
+NEGRO = (0, 0, 0)
+ROJO = (255, 0, 0)
+VERDE = (0, 255, 0)
+AZUL = (0, 0, 255)
 
 # ==========================================
-# 7. CONFIGURACIÓN DE NIVELES (ESCALABILIDAD)
+# 3. MENÚ DE PAUSA
 # ==========================================
-"""
-Lista de niveles del juego.
-Para agregar un nuevo nivel, añade un nuevo bloque {} separado por comas.
-Para cambiar la dificultad de un nivel, edita los valores dentro de su bloque.
-"""
-NIVELES = [
-    # --- NIVEL 1 (ACTUAL) ---
-    {
-        "id": 1,
-        "boss_nombre": "Donald T.",
-        "boss_vida": 300,        # Muevele a lo que le veas conveniente jordy
-        "boss_ataque": 25,       
-        "fondo": "fondo_n1.png"  # Nombre de archivo para graficos.py
-    }
-    
-    # Cuando quieras añadir el Nivel 2, solo descomenta y edita esto:
-    # ,{
-    #     "id": 2,
-    #     "boss_nombre": "Elon M.",
-    #     "boss_vida": 400,
-    #     "boss_ataque": 30,
-    #     "fondo": "fondo_n2.png"
-    # }
-]    
+# Opciones que aparecen al presionar la tecla 'P'.
+# [CUIDADO]: Si agregan una opción nueva aquí, deben programar su lógica
+# en el archivo main.py dentro del bucle de eventos.
+OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # ==========================================
-# 3. ÁRBOL DE PROBABILIDAD (ATAQUES BÁSICOS)
+# 4. ESTADÍSTICAS DE JUGADORES (BALANCEO)
 # ==========================================
-"""
-Para ajustar la dificultad de acertar golpes, edita esta sección.
-NOTA: Se usan valores decimales (0.0 a 1.0) para consistencia.
-"""
-# El valor generado (0.0-1.0) debe ser MAYOR a esto para acertar.
-PROB_ACIERTO = 0.8
-PROB_FALLO = 0.2   
 
-# Probabilidades Internas (Deben sumar 1.0 dentro de su rama)
-PROB_CRITICO = 0.3     
-PROB_NORMAL = 0.7      
-PROB_TROPIEZO = 0.1    
-PROB_NADA = 0.9        
+# --- JUGADOR 1 (DPS / Atacante) ---
+P1_NOMBRE = "Jugador 1"
+P1_VIDA_MAX = 100      # Vida total. Aumentar para hacerlo más resistente.
+P1_ATAQUE = 20         # Daño base de sus ataques normales.
+P1_ENERGIA_MAX = 50    # (Reservado para uso futuro de maná/energía).
 
-# Multiplicadores
-MULT_CRITICO = 2.0     
-DANO_TROPIEZO = 10    
-
-# ==========================================
-# 4. SISTEMA DE IDs Y EFECTOS (GRAFOS)
-# ==========================================
-"""
-Para cambiar qué ID corresponde a qué tipo de ataque, mira esta tabla.
-"""
-ID_ESTADO_INICIAL = 0
-ID_ATAQUE_FISICO = 1   # Acción Directa
-ID_ELEMENTAL = 2       # Recurso Especial (Fuego, curacion)
-ID_CONTROL = 3         # Habilidad de Estado
-
-# Valores de Efectos
-DANO_QUEMADURA = 5    # Daño por turno si está Quemado
-DANO_SANGRADO = 5     # Daño al actuar si tiene Sangrado
-ESCUDO_VALOR = 30      # Cuánto absorbe el escudo
-CURACION_VALOR = 20    # Cuánto cura la habilidad de curación
-
-# ==========================================
-# 5. HABILIDADES 
-# ==========================================
-"""
-Todas las habilidades detalladas del los personajes
-"""
-
-# Habilidades Personaje 1
+# [IMPORTANTE]: LISTA DE HABILIDADES
+# Cada habilidad es un diccionario {}. 
+# SI AGREGAN UNA NUEVA, COPIEN Y PEGUEN LA ESTRUCTURA EXACTA.
+# Si falta una clave (ej: "id" o "efecto_code"), el juego se cerrará con error.
 HABILIDADES_P1 = [
     {
-        "nombre": "Cuchillada",
-        "costo": 30,
-        "desc": "Sangrado: Recibirá daño hasta curarse.",
-        "id": 1,
-        "efecto_code": "sangrado"
+        "id": "h_disparo",              # Identificador interno (no se ve en pantalla)
+        "nombre": "Disparo Preciso",    # Nombre visible
+        "dano": 30,                     # Cuánto quita de vida
+        "costo": 15,                    # Costo de energía (si se implementa)
+        "tipo": "ATAQUE",               # Categoría
+        "desc": "Disparo certero a la cabeza.", # Descripción
+        "icono": "icono_disparo.png",   # Nombre del archivo en la carpeta de sprites
+        "efecto_code": "CRITICO"        # Clave para el Grafo de Estados (ver estructuras.py)
     },
     {
-        "nombre": "Cóctel Molotov",
-        "costo": 40,
-        "desc": "Quemado: Daño constante por turno.",
-        "id": 2,
-        "efecto_code": "quemado"
+        "id": "h_granada",
+        "nombre": "Granada", 
+        "dano": 45, 
+        "costo": 30, 
+        "tipo": "ATAQUE", 
+        "desc": "Explosión de área masiva.",
+        "icono": "icono_molotov.png",
+        "efecto_code": "QUEMADURA"      # Esto activará el estado 'Quemado'
     },
     {
-        "nombre": "Motivación",
-        "costo": 50,
-        "desc": "Motivado: +Crítico y -Costos.",
-        "id": 3,
-        "efecto_code": "motivado"
-    },
-    {
-        "nombre": "Intimidación",
-        "costo": 25,
-        "desc": "Vulnerable: Enemigo recibe más daño.",
-        "id": 3,
-        "efecto_code": "vulnerable"
+        "id": "h_recarga",
+        "nombre": "Recargar", 
+        "dano": 0,                      # 0 daño porque es soporte
+        "costo": 0, 
+        "tipo": "SOPORTE", 
+        "desc": "Recupera energía rápidamente.",
+        "icono": "icono_grito.png",
+        "efecto_code": "RECARGA"
     }
 ]
 
-# Habilidades Personaje 2
+# --- JUGADOR 2 (Tanque / Soporte) ---
+P2_NOMBRE = "Jugador 2"
+P2_VIDA_MAX = 150      # Tiene más vida porque es Tanque
+P2_ATAQUE = 12         # Pega menos que el J1
+P2_ENERGIA_MAX = 50
+
 HABILIDADES_P2 = [
     {
-        "nombre": "Muro de Contención",
-        "costo": 35,
-        "desc": "Escudado: Absorbe daño antes de tocar HP.",
-        "id": 3,
-        "efecto_code": "escudo"
+        "id": "h_escudo",
+        "nombre": "Escudo", 
+        "dano": 0, 
+        "costo": 20, 
+        "tipo": "DEFENSA", 
+        "desc": "Bloquea el próximo ataque.",
+        "icono": "icono_escudo.png",
+        "efecto_code": "ESCUDO"
     },
     {
-        "nombre": "Discurso",
-        "costo": 45,
-        "desc": "Aturdido: Rival pierde siguiente turno.",
-        "id": 3,
-        "efecto_code": "aturdido"
+        "id": "h_curar",
+        "nombre": "Curar", 
+        "dano": -20,                    # [TRUCO]: Daño negativo significa CURACIÓN en la lógica del juego.
+        "costo": 30, 
+        "tipo": "CURACION", 
+        "desc": "Restaura vida a un aliado.",
+        "icono": "icono_curar.png",
+        "efecto_code": "CURACION"
     },
     {
-        "nombre": "Bono de Guerra",
-        "costo": 60,
-        "desc": "Curado: Recupera porción de vida.",
-        "id": 1,
-        "efecto_code": "curar"
-    },
-    {
-        "nombre": "Disparo",
-        "costo": 30,
-        "desc": "Sangrado: Recibirá daño hasta curarse.",
-        "id": 1,
-        "efecto_code": "sangrado"
+        "id": "h_intimidar",
+        "nombre": "Intimidar", 
+        "dano": 5, 
+        "costo": 10, 
+        "tipo": "DEBUFF", 
+        "desc": "Reduce el ataque del enemigo.",
+        "icono": "icono_intimidar.png",
+        "efecto_code": "DEBILIDAD"
     }
 ]
 
 # ==========================================
-# 6. DIÁLOGOS Y TEXTOS (LORE)
+# 5. MATEMÁTICAS DEL ÁRBOL DE DECISIÓN
 # ==========================================
-"""
-TODO agregar las frases 
-"""
-FRASES_EXITO = []
-FRASES_FALLO = []
-FRASES_BOSS = []
+# Estos valores controlan la "suerte" en el combate.
+# Rango: 0.0 (0%) a 1.0 (100%)
+
+PROB_ACIERTO = 0.85   # 85% de probabilidad de que el ataque conecte.
+PROB_CRITICO = 0.20   # 20% de probabilidad de hacer daño extra.
+PROB_TROPIEZO = 0.10  # 10% de probabilidad de herirse a uno mismo al fallar.
+
+# --- MULTIPLICADORES DE DAÑO ---
+MULT_CRITICO = 1.5    # El crítico hace 1.5 veces el daño normal (50% más).
+DANO_TROPIEZO = 10    # Daño fijo que recibe el personaje si se tropieza.
+
+# ==========================================
+# 6. CONFIGURACIÓN DEL NIVEL Y BOSS
+# ==========================================
+NIVELES = [
+    {
+        "fondo": "escenario.png",       # Imagen de fondo (debe estar en la carpeta de sprites)
+        "boss_nombre": "Donald T.",
+        "boss_vida": 300,               # [DIFICULTAD]: Aumentar este número para batallas más largas.
+        "boss_ataque": 15,              # Daño base del jefe.
+        "dialogo_entrada": "¡No pasaran mi muro!"
+    }
+]
+
+# ==========================================
+# 7. SISTEMA DE DIÁLOGOS (Flavor Text)
+# ==========================================
+# Frases aleatorias que aparecen en la caja de texto.
+# [MODIFICACIÓN]: Pueden agregar tantas frases como quieran entre las comillas.
+
+FRASES_EXITO = [
+    "¡Blanco acertado!", 
+    "¡Golpe directo!", 
+    "¡Toma eso!",
+    "¡En el blanco!"
+]
+
+FRASES_FALLO = [
+    "¡Fallaste!", 
+    "¡Se movió rápido!", 
+    "¡Resbalaste!",
+    "El disparo se desvió."
+]
+
+FRASES_BOSS = [
+    "¡Estás despedido!", 
+    "¡Construiré un muro!", 
+    "¡Fake News!",
+    "¡Tengo inmunidad!"
+]

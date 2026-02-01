@@ -2,103 +2,122 @@ import random
 import config
 
 """
-ESTRUCTURAS DE DATOS 
-----------------------------------------------
-Archivo donde irán todos los grafos y arboles del proyecto
-GUÍA:
-1. Clase NodoDecision (La estructura del árbol) ........ Línea 26
-2. Construcción del Árbol (Armado manual) .............. Línea 58
-3. Recorrido del Árbol (La lógica de paso) ............. Línea 105
+ESTRUCTURAS DE DATOS LÓGICAS
+---------------------------------------------------
+Este archivo contiene la lógica matemática y de decisiones del proyecto.
+Se implementan dos Estructuras de Datos No Lineales:
+
+1. ÁRBOL BINARIO DE DECISIÓN: 
+   - Se usa para calcular si un ataque acierta, es crítico o falla.
+   - Es "Binario" porque cada decisión tiene solo 2 caminos (Sí o No).
+
+2. GRAFO DIRIGIDO (MÁQUINA DE ESTADOS):
+   - Se usa para controlar los estados del personaje (Normal -> Quemado -> Curado).
+   - Es un "Grafo" porque los estados son nodos conectados por flechas (eventos).
 """
 
+# ==========================================
+# CLASE AUXILIAR: PAQUETE DE DATOS
+# ==========================================
 class ResultadoAtaque:
-    # Es la hoja final que devuelve el árbol. Se encarga del transporte de datos
-    def __init__(self, tipo, mensaje, multiplicador_dano=1.0, dano_fijo=0):
-        self.tipo = tipo        # "EXITO", "CRITICO", "FALLO", "TROPIEZO"
-        self.mensaje = mensaje
-        self.multiplicador = multiplicador_dano
-        self.dano_fijo = dano_fijo
+    """
+    Esta clase es solo una 'caja' o 'sobre' para transportar información.
+    Cuando el Árbol termina de pensar, devuelve un objeto de este tipo.
+    """
+    def __init__(self, tipo, mensaje, dano_total):
+        self.tipo = tipo            # Ej: "CRITICO", "FALLO", "NORMAL", "TROPIEZO"
+        self.mensaje = mensaje      # El texto que sale en la pantalla.
+        
+        # [IMPORTANTE]: La variable se llama 'dano' porque main.py la busca con ese nombre exacto.
+        # Si le cambian el nombre aquí, el juego se romperá.
+        self.dano = dano_total      
 
+# ==========================================
+# ESTRUCTURA 1: ÁRBOL BINARIO
+# ==========================================
 class NodoDecision:
-    def __init__(self, nombre, probabilidad_limite=None, resultado=None):
+    """
+    Representa un punto en el diagrama de flujo (un círculo en el dibujo del árbol).
+    """
+    def __init__(self, nombre, probabilidad_limite=None, resultado_base=None):
         self.nombre = nombre
-        self.valor_probabilidad = probabilidad_limite # ej: 0.8
         
-        self.izquierda = None  # Camino SI (Se cumple la probabilidad)
-        self.derecha = None    # Camino NO (No se cumple)
+        # Valor entre 0.0 y 1.0. Si el dado saca menos que esto, vamos a la IZQUIERDA.
+        self.valor_probabilidad = probabilidad_limite 
         
-        # Si es un nodo hoja, tendrá un resultado; si es rama, será None.
-        self.resultado = resultado 
+        # Punteros: Conectan este nodo con los siguientes (las ramas).
+        self.izquierda = None  # Camino del ÉXITO (Se cumple la probabilidad)
+        self.derecha = None    # Camino del FALLO (No se cumple)
+        
+        # Si el nodo es el final del camino (Hoja), guardamos aquí qué pasa (daño, mensaje).
+        self.resultado_base = resultado_base 
 
     def es_hoja(self):
+        """Devuelve True si este nodo no tiene hijos (es el final del camino)."""
         return self.izquierda is None and self.derecha is None
 
 class ArbolAtaque:
-    #Se encarga de recorrer el arbol
+    """
+    La clase que ensambla y recorre el Árbol.
+    """
     def __init__(self):
+        # Al crear la clase, construimos el mapa de decisiones automáticamente.
         self.raiz = self.construir_arbol()
 
     def construir_arbol(self):
         """
-        Arma el árbol conectando los nodos manualmente según el diagrama.
+        [MODIFICACIÓN]: Aquí se 'cablea' la lógica del combate.
+        Si quieren agregar una nueva posibilidad (ej: 'Golpe Divino'), deben crear
+        un nuevo NodoDecision y conectarlo aquí.
         """
-        # Resultados finales (hojas)
-        # Rama Éxito
+        # --- 1. CREAR LAS HOJAS (Los finales posibles) ---
+        # config.MULT_CRITICO viene de config.py
+        
         hoja_critico = NodoDecision("Crítico", 
-                                    resultado=ResultadoAtaque("CRITICO", "¡GOLPE CRÍTICO!", 
-                                                              config.MULT_CRITICO, 0))
+                                    resultado_base=("CRITICO", "¡GOLPE CRÍTICO!", config.MULT_CRITICO))
+        
         hoja_normal = NodoDecision("Normal", 
-                                   resultado=ResultadoAtaque("NORMAL", "Ataque Efectivo", 
-                                                             1.0, 0))
+                                   resultado_base=("NORMAL", "Ataque Efectivo", 1.0)) # 1.0 = Daño normal
         
-        # Rama Fallo
         hoja_tropiezo = NodoDecision("Tropiezo", 
-                                     resultado=ResultadoAtaque("TROPIEZO", 
-                                                               "¡Te lastimaste!", 0, config.DANO_TROPIEZO))
-        #se les pasa 0 en el ataque ya que eso tendra que ver con el tipo de personaje y el multuplicador
-        hoja_nada = NodoDecision("Nada", 
-                                 resultado=ResultadoAtaque("FALLO", "Fallaste.", 0, 0))
-
+                                     resultado_base=("TROPIEZO", "¡Te lastimaste!", config.DANO_TROPIEZO))
         
-        # Izquierda: Decisión Es Crítico? (0.3)
+        hoja_nada = NodoDecision("Nada", 
+                                 resultado_base=("FALLO", "Fallaste.", 0)) # 0 de daño
+
+        # --- 2. CREAR LAS RAMAS (Las preguntas intermedias) ---
+        
+        # Pregunta A: Si acertó el golpe, ¿es tan bueno que es crítico?
         nodo_tipo_exito = NodoDecision("Es Crítico?", probabilidad_limite=config.PROB_CRITICO)
-        nodo_tipo_exito.izquierda = hoja_critico  # Si random <= 0.3 -> Crítico
-        nodo_tipo_exito.derecha = hoja_normal     # Si random > 0.3 -> Normal
+        nodo_tipo_exito.izquierda = hoja_critico  # Si sí -> Crítico
+        nodo_tipo_exito.derecha = hoja_normal     # Si no -> Normal
 
-        # Derecho: Decisión Es Tropiezo? (0.1)
+        # Pregunta B: Si falló el golpe, ¿fue tan malo que se tropezó?
         nodo_tipo_fallo = NodoDecision("Es Tropiezo?", probabilidad_limite=config.PROB_TROPIEZO)
-        nodo_tipo_fallo.izquierda = hoja_tropiezo # Si random <= 0.1 -> Tropiezo
-        nodo_tipo_fallo.derecha = hoja_nada       # Si random > 0.1 -> Nada
+        nodo_tipo_fallo.izquierda = hoja_tropiezo # Si sí -> Daño a uno mismo
+        nodo_tipo_fallo.derecha = hoja_nada       # Si no -> Solo falló
 
-        # Decisión Principal: Acierta el golpe? (0.8)
-        #llama al archivo config que contiene todos los datos de probabilidad
+        # --- 3. CREAR LA RAÍZ (La primera pregunta) ---
+        # Pregunta Principal: ¿El ataque conecta con el enemigo?
         raiz = NodoDecision("Acierta?", probabilidad_limite=config.PROB_ACIERTO)
-        raiz.izquierda = nodo_tipo_exito # Si random <= 0.8 -> Vamos a sub-arbol éxito
-        raiz.derecha = nodo_tipo_fallo   # Si random > 0.8 -> Vamos a sub-arbol fallo
+        raiz.izquierda = nodo_tipo_exito # Vamos a la rama de éxitos
+        raiz.derecha = nodo_tipo_fallo   # Vamos a la rama de fallos
 
         return raiz
-    
-    """Para crear una rama que salga desde la raiz:
-    rama.izquierda o rama.derecha
-    para crear una hoja:
-    nodo_tipo_exito.izquierda o .derecha
-    a las hojas debes darles un valor desde la 
-    clase porque son las que entregaran el resultado final
-
-    """
 
     def recorrer(self, nodo_actual):
         """
-        Función recursiva para navegar por los punteros self.izquierda/derecha.
+        ALGORITMO RECURSIVO:
+        Esta función se llama a sí misma para bajar por el árbol hasta encontrar una hoja.
         """
-        # Si es hoja, devolvemos el resultado almacenado
+        # CASO BASE: Si llegamos al final, devolvemos el resultado.
         if nodo_actual.es_hoja():
-            return nodo_actual.resultado
+            return nodo_actual.resultado_base
         
-        #Tiramos el dado y decidimos a qué hijo ir
-        roll = random.random()
+        # Tiramos el dado (número entre 0.0 y 1.0)
+        roll = random.random() 
         
-        # Si el número es menor/igual a la probabilidad, vamos a la izquierda
+        # Decidimos a dónde ir
         if roll <= nodo_actual.valor_probabilidad:
             return self.recorrer(nodo_actual.izquierda)
         else:
@@ -106,16 +125,66 @@ class ArbolAtaque:
 
     @staticmethod
     def ejecutar_ataque(atacante_atk):
+        """
+        Esta es la función que llama el main.py.
+        1. Crea el árbol.
+        2. Lo recorre para obtener un resultado.
+        3. Calcula el número final de daño.
+        """
         arbol = ArbolAtaque()
-        resultado_hoja = arbol.recorrer(arbol.raiz)
+        tipo, mensaje, valor = arbol.recorrer(arbol.raiz)
         
-        # Aplicamos el multiplicador
-        dano_final = int(atacante_atk * resultado_hoja.multiplicador)
+        # --- LÓGICA MATEMÁTICA DE DAÑO ---
+        if tipo == "TROPIEZO":
+            dano_final = valor # En tropiezo, el valor es daño fijo (ej: 10)
+        elif tipo == "FALLO":
+            dano_final = 0
+        else:
+            # En Normal o Crítico, el valor es un multiplicador (ej: 1.5)
+            # Formula: Ataque Base * Multiplicador
+            dano_final = int(atacante_atk * valor)
         
-        # Devolvemos un objeto simple con el daño ya calculado
-        return ResultadoAtaque(
-            resultado_hoja.tipo, 
-            resultado_hoja.mensaje, 
-            dano_final, 
-            resultado_hoja.dano_fijo
-        )
+        # Empaquetamos todo en el objeto ResultadoAtaque
+        return ResultadoAtaque(tipo, mensaje, dano_final)
+
+# ==========================================
+# ESTRUCTURA 2: GRAFO DIRIGIDO
+# ==========================================
+class GrafoEfectos:
+    """
+    Controla cómo cambian los estados de los personajes.
+    Estructura: Lista de Adyacencia (Diccionario de Diccionarios).
+    """
+    def __init__(self):
+        # [MODIFICACIÓN]: Si quieren agregar un nuevo estado (ej: "Congelado"),
+        # agréguenlo como una clave nueva en este diccionario.
+        self.nodos = {
+            # ESTADO ACTUAL : { CAUSA -> ESTADO SIGUIENTE }
+            "Normal": {
+                "fuego": "Quemado", 
+                "cuchillo": "Sangrado", 
+                "defensa": "Escudo",
+                "motivacion": "Motivado",
+                "insulto": "Aturdido",
+                "critico_recibido": "Vulnerable",
+                "migra": "Deportado" 
+            },
+            # Definimos cómo salir de los estados alterados
+            "Quemado": {"cura": "Curado", "fin_turno": "Normal"},
+            "Sangrado": {"cura": "Curado", "fin_turno": "Normal"},
+            "Escudo": {"romper": "Normal", "fin_turno": "Normal"},
+            "Motivado": {"fin_turno": "Normal"},
+            "Aturdido": {"fin_turno": "Normal"},
+            "Vulnerable": {"recibir_golpe": "Normal"},
+            "Deportado": {"fin_turno": "Normal"},
+            "Curado": {"listo": "Normal"}
+        }
+
+    def transicion(self, estado_actual, evento):
+        """
+        Intenta mover al personaje de un estado a otro.
+        Si el evento no existe para el estado actual, se queda igual.
+        """
+        # .get(evento, estado_actual) significa: 
+        # "Busca el evento, si no existe, devuélveme el estado donde ya estaba".
+        return self.nodos.get(estado_actual, {}).get(evento, estado_actual)
