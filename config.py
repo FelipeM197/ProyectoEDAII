@@ -42,93 +42,109 @@ OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 P1_NOMBRE = "Jugador 1"
 P1_VIDA_MAX = 100      # Vida total. Aumentar para hacerlo más resistente.
 P1_ATAQUE = 20         # Daño base de sus ataques normales.
-P1_ENERGIA_MAX = 50    # (Reservado para uso futuro de maná/energía).
+P1_ENERGIA_MAX = 10   
 
-# [IMPORTANTE]: LISTA DE HABILIDADES
-# Cada habilidad es un diccionario {}. 
-# SI AGREGAN UNA NUEVA, COPIEN Y PEGUEN LA ESTRUCTURA EXACTA.
+P2_NOMBRE = "Jugador 2"
+P2_VIDA_MAX = 150      # Vida total. Aumentar para hacerlo más resistente.
+P2_ATAQUE = 15         # Daño base de sus ataques normales.
+P2_ENERGIA_MAX = 150    # (Reservado para uso futuro de maná/energía).
+
+# Cada habilidad es un diccionario {}. .
 # Si falta una clave (ej: "id" o "efecto_code"), el juego se cerrará con error.
+
 HABILIDADES_P1 = [
     {
-        "id": "h_disparo",              # Identificador interno (no se ve en pantalla)
-        "nombre": "Disparo Preciso",    # Nombre visible
-        "dano": 30,                     # Cuánto quita de vida
-        "costo": 15,                    # Costo de energía (si se implementa)
-        "tipo": "ATAQUE",               # Categoría
-        "desc": "Disparo certero a la cabeza.", # Descripción
-        "icono": "icono_disparo.png",   # Nombre del archivo en la carpeta de sprites
-        "efecto_code": "CRITICO"        # Clave para el Grafo de Estados (ver estructuras.py)
+        "id": "h_cuchillada",
+        "nombre": "Cuchillada",
+        "dano": 30,
+        "costo": 30,
+        "tipo": "ATAQUE",
+        "desc": "Sangrado: Recibirá daño hasta curarse.",
+        "icono": "icono_cuchillo.png",
+        "efecto_code": "cuchillo"  # Conecta con Grafo: Normal -> Sangrado
     },
     {
-        "id": "h_granada",
-        "nombre": "Granada", 
-        "dano": 45, 
-        "costo": 30, 
-        "tipo": "ATAQUE", 
-        "desc": "Explosión de área masiva.",
+        "id": "h_molotov",
+        "nombre": "Cóctel Molotov",
+        "dano": 40,
+        "costo": 40,
+        "tipo": "ATAQUE",
+        "desc": "Quemado: Daño constante por turno.",
         "icono": "icono_molotov.png",
-        "efecto_code": "QUEMADURA"      # Esto activará el estado 'Quemado'
+        "efecto_code": "fuego"     # Conecta con Grafo: Normal -> Quemado
     },
     {
-        "id": "h_recarga",
-        "nombre": "Recargar", 
-        "dano": 0,                      # 0 daño porque es soporte
-        "costo": 0, 
-        "tipo": "SOPORTE", 
-        "desc": "Recupera energía rápidamente.",
+        "id": "h_motivacion",
+        "nombre": "Motivación",
+        "dano": 0,                # No hace daño, es un buff
+        "costo": 50,
+        "tipo": "BUFF",
+        "desc": "Motivado: +Crítico y -Costos.",
         "icono": "icono_grito.png",
-        "efecto_code": "RECARGA"
+        "efecto_code": "motivacion"
+    },
+    {
+        "id": "h_intimidacion",
+        "nombre": "Intimidación",
+        "dano": 10,
+        "costo": 25,
+        "tipo": "DEBUFF",
+        "desc": "Vulnerable: Enemigo recibe más daño.",
+        "icono": "icono_intimidar.png",
+        "efecto_code": "insulto"   # Conecta con Grafo: Normal -> Aturdido/Vulnerable
     }
 ]
-
-# --- JUGADOR 2 (Tanque / Soporte) ---
-P2_NOMBRE = "Jugador 2"
-P2_VIDA_MAX = 150      # Tiene más vida porque es Tanque
-P2_ATAQUE = 12         # Pega menos que el J1
-P2_ENERGIA_MAX = 50
 
 HABILIDADES_P2 = [
     {
-        "id": "h_escudo",
-        "nombre": "Escudo", 
-        "dano": 0, 
-        "costo": 20, 
-        "tipo": "DEFENSA", 
-        "desc": "Bloquea el próximo ataque.",
+        "id": "h_muro",
+        "nombre": "Muro Contención",
+        "dano": 0,
+        "costo": 35,
+        "tipo": "DEFENSA",
+        "desc": "Escudado: Absorbe daño antes de tocar HP.",
         "icono": "icono_escudo.png",
-        "efecto_code": "ESCUDO"
+        "efecto_code": "defensa"
     },
     {
-        "id": "h_curar",
-        "nombre": "Curar", 
-        "dano": -20,                    # [TRUCO]: Daño negativo significa CURACIÓN en la lógica del juego.
-        "costo": 30, 
-        "tipo": "CURACION", 
-        "desc": "Restaura vida a un aliado.",
+        "id": "h_discurso",
+        "nombre": "Discurso",
+        "dano": 15,
+        "costo": 45,
+        "tipo": "DEBUFF",
+        "desc": "Aturdido: Rival pierde siguiente turno.",
+        "icono": "icono_grito.png",
+        "efecto_code": "insulto"
+    },
+    {
+        "id": "h_bono",
+        "nombre": "Bono de Guerra",
+        "dano": -30,              # Negativo = Curación
+        "costo": 60,
+        "tipo": "CURACION",
+        "desc": "Curado: Recupera porción de vida.",
         "icono": "icono_curar.png",
-        "efecto_code": "CURACION"
+        "efecto_code": "cura"
     },
     {
-        "id": "h_intimidar",
-        "nombre": "Intimidar", 
-        "dano": 5, 
-        "costo": 10, 
-        "tipo": "DEBUFF", 
-        "desc": "Reduce el ataque del enemigo.",
-        "icono": "icono_intimidar.png",
-        "efecto_code": "DEBILIDAD"
+        "id": "h_disparo_p2",
+        "nombre": "Disparo Táctico",
+        "dano": 25,
+        "costo": 30,
+        "tipo": "ATAQUE",
+        "desc": "Ataque básico a distancia.",
+        "icono": "icono_disparo.png",
+        "efecto_code": "CRITICO"
     }
 ]
-
 # ==========================================
 # 5. MATEMÁTICAS DEL ÁRBOL DE DECISIÓN
 # ==========================================
 # Estos valores controlan la "suerte" en el combate.
-# Rango: 0.0 (0%) a 1.0 (100%)
 
-PROB_ACIERTO = 0.85   # 85% de probabilidad de que el ataque conecte.
-PROB_CRITICO = 0.20   # 20% de probabilidad de hacer daño extra.
-PROB_TROPIEZO = 0.10  # 10% de probabilidad de herirse a uno mismo al fallar.
+PROB_ACIERTO = 0.85   
+PROB_CRITICO = 0.20  
+PROB_TROPIEZO = 0.10  
 
 # --- MULTIPLICADORES DE DAÑO ---
 MULT_CRITICO = 1.5    # El crítico hace 1.5 veces el daño normal (50% más).
@@ -141,8 +157,8 @@ NIVELES = [
     {
         "fondo": "escenario.png",       # Imagen de fondo (debe estar en la carpeta de sprites)
         "boss_nombre": "Donald T.",
-        "boss_vida": 300,               # [DIFICULTAD]: Aumentar este número para batallas más largas.
-        "boss_ataque": 15,              # Daño base del jefe.
+        "boss_vida": 300,             
+        "boss_ataque": 15,              
         "dialogo_entrada": "¡No pasaran mi muro!"
     }
 ]

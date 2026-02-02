@@ -16,8 +16,11 @@ class Habilidad:
         self.nombre = datos_dict["nombre"]
         self.costo = datos_dict["costo"]
         self.descripcion = datos_dict["desc"]
-        self.id_efecto = datos_dict["id"]
-        self.codigo_efecto = datos_dict["efecto_code"] 
+        # Asegúrate de tener estos dos:
+        self.dano = datos_dict.get("dano", 0) # Si no tiene daño, asume 0
+        self.tipo = datos_dict.get("tipo", "NORMAL")
+        self.codigo_efecto = datos_dict["efecto_code"]
+
 
 class Personaje:
     """

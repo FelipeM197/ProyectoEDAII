@@ -20,17 +20,15 @@ Se implementan dos Estructuras de Datos No Lineales:
 # CLASE AUXILIAR: PAQUETE DE DATOS
 # ==========================================
 class ResultadoAtaque:
-    """
-    Esta clase es solo una 'caja' o 'sobre' para transportar información.
-    Cuando el Árbol termina de pensar, devuelve un objeto de este tipo.
-    """
-    def __init__(self, tipo, mensaje, dano_total):
-        self.tipo = tipo            # Ej: "CRITICO", "FALLO", "NORMAL", "TROPIEZO"
-        self.mensaje = mensaje      # El texto que sale en la pantalla.
+    # Es la hoja final que devuelve el árbol. Se encarga del transporte de datos.
+    def __init__(self, tipo, mensaje, multiplicador_dano=1.0, dano_fijo=0, dano_real=0):
+        self.tipo = tipo        # "EXITO", "CRITICO", "FALLO", "TROPIEZO"
+        self.mensaje = mensaje
+        self.multiplicador = multiplicador_dano
+        self.dano_fijo = dano_fijo
         
-        # [IMPORTANTE]: La variable se llama 'dano' porque main.py la busca con ese nombre exacto.
-        # Si le cambian el nombre aquí, el juego se romperá.
-        self.dano = dano_total      
+        # Esta es la variable vital que main.py necesita leer:
+        self.dano = dano_real
 
 # ==========================================
 # ESTRUCTURA 1: ÁRBOL BINARIO
@@ -125,66 +123,110 @@ class ArbolAtaque:
 
     @staticmethod
     def ejecutar_ataque(atacante_atk):
-        """
-        Esta es la función que llama el main.py.
-        1. Crea el árbol.
-        2. Lo recorre para obtener un resultado.
-        3. Calcula el número final de daño.
-        """
         arbol = ArbolAtaque()
-        tipo, mensaje, valor = arbol.recorrer(arbol.raiz)
         
-        # --- LÓGICA MATEMÁTICA DE DAÑO ---
+        # Aquí recibimos la TUPLA del árbol (Tipo, Mensaje, Valor)
+        resultado_tupla = arbol.recorrer(arbol.raiz)
+        
+        # Desempaquetamos la tupla manualmente para no confundir al programa
+        tipo = resultado_tupla[0]
+        mensaje = resultado_tupla[1]
+        valor = resultado_tupla[2] # Puede ser multiplicador (1.5) o daño fijo (10)
+        
+        # 1. Calculamos el daño final según el tipo
         if tipo == "TROPIEZO":
-            dano_final = valor # En tropiezo, el valor es daño fijo (ej: 10)
+            dano_final = valor # En tropiezo, el valor es el daño fijo
         elif tipo == "FALLO":
             dano_final = 0
         else:
-            # En Normal o Crítico, el valor es un multiplicador (ej: 1.5)
-            # Formula: Ataque Base * Multiplicador
+            # En Normal o Crítico, el valor es un multiplicador
             dano_final = int(atacante_atk * valor)
-        
-        # Empaquetamos todo en el objeto ResultadoAtaque
-        return ResultadoAtaque(tipo, mensaje, dano_final)
+
+        # Devolvemos el objeto final pasando el 'dano_final' al campo correcto
+        return ResultadoAtaque(
+            tipo, 
+            mensaje, 
+            multiplicador_dano=valor if tipo not in ["TROPIEZO", "FALLO"] else 0,
+            dano_fijo=valor if tipo == "TROPIEZO" else 0,
+            dano_real=dano_final # [COHERENCIA]: Aquí guardamos el daño final para main.py
+        )
 
 # ==========================================
 # ESTRUCTURA 2: GRAFO DIRIGIDO
 # ==========================================
 class GrafoEfectos:
     """
-    Controla cómo cambian los estados de los personajes.
-    Estructura: Lista de Adyacencia (Diccionario de Diccionarios).
+    Implementación de un Grafo Dirigido utilizando Listas de Adyacencia.
+    Cada vértice representa un estado y cada arista representa una transición disparada por un evento.
     """
     def __init__(self):
-        # [MODIFICACIÓN]: Si quieren agregar un nuevo estado (ej: "Congelado"),
-        # agréguenlo como una clave nueva en este diccionario.
-        self.nodos = {
-            # ESTADO ACTUAL : { CAUSA -> ESTADO SIGUIENTE }
-            "Normal": {
-                "fuego": "Quemado", 
-                "cuchillo": "Sangrado", 
-                "defensa": "Escudo",
-                "motivacion": "Motivado",
-                "insulto": "Aturdido",
-                "critico_recibido": "Vulnerable",
-                "migra": "Deportado" 
-            },
-            # Definimos cómo salir de los estados alterados
-            "Quemado": {"cura": "Curado", "fin_turno": "Normal"},
-            "Sangrado": {"cura": "Curado", "fin_turno": "Normal"},
-            "Escudo": {"romper": "Normal", "fin_turno": "Normal"},
-            "Motivado": {"fin_turno": "Normal"},
-            "Aturdido": {"fin_turno": "Normal"},
-            "Vulnerable": {"recibir_golpe": "Normal"},
-            "Deportado": {"fin_turno": "Normal"},
-            "Curado": {"listo": "Normal"}
-        }
+        # Estructura principal: Diccionario donde la clave es el vértice origen
+        # y el valor es otro diccionario con las aristas {evento: vértice_destino}
+        self.lista_adyacencia = {}
+        
+        # Construcción inicial de la lógica del juego
+        self.construir_grafo_juego()
+
+    def agregar_vertice(self, estado):
+        """
+        Inserta un nuevo vértice (estado) en el grafo si no existe.
+        """
+        if estado not in self.lista_adyacencia:
+            self.lista_adyacencia[estado] = {}
+
+    def agregar_arista(self, origen, evento, destino):
+        """
+        Crea una arista dirigida desde el vértice 'origen' hacia 'destino',
+        etiquetada con el 'evento' que dispara la transición.
+        """
+        # Aseguramos que los vértices existan antes de conectar
+        self.agregar_vertice(origen)
+        self.agregar_vertice(destino)
+        
+        # Inserción de la arista en la lista de adyacencia
+        self.lista_adyacencia[origen][evento] = destino
+
+    def construir_grafo_juego(self):
+        """
+        Define la topología del grafo específica para la lógica de combate.
+        Se crean los nodos y las conexiones manualmente.
+        """
+        # Transiciones desde el estado base "Normal"
+        self.agregar_arista("Normal", "fuego", "Quemado")
+        self.agregar_arista("Normal", "cuchillo", "Sangrado")
+        self.agregar_arista("Normal", "defensa", "Escudo")
+        self.agregar_arista("Normal", "motivacion", "Motivado")
+        self.agregar_arista("Normal", "insulto", "Aturdido")
+        self.agregar_arista("Normal", "critico_recibido", "Vulnerable")
+        self.agregar_arista("Normal", "migra", "Deportado")
+
+        # Transiciones de recuperación (Vuelta a la normalidad o cura)
+        self.agregar_arista("Quemado", "cura", "Curado")
+        self.agregar_arista("Quemado", "fin_turno", "Normal")
+        
+        self.agregar_arista("Sangrado", "cura", "Curado")
+        self.agregar_arista("Sangrado", "fin_turno", "Normal")
+        
+        self.agregar_arista("Escudo", "romper", "Normal")
+        self.agregar_arista("Escudo", "fin_turno", "Normal")
+        
+        self.agregar_arista("Motivado", "fin_turno", "Normal")
+        self.agregar_arista("Aturdido", "fin_turno", "Normal")
+        self.agregar_arista("Vulnerable", "recibir_golpe", "Normal")
+        self.agregar_arista("Deportado", "fin_turno", "Normal")
+        
+        self.agregar_arista("Curado", "listo", "Normal")
 
     def transicion(self, estado_actual, evento):
         """
-        Intenta mover al personaje de un estado a otro.
-        Si el evento no existe para el estado actual, se queda igual.
+        Recorre el grafo buscando una arista válida para el estado y evento dados.
+        Si existe la conexión, retorna el nuevo estado; de lo contrario, mantiene el actual.
         """
-        # .get(evento, estado_actual) significa: 
-        # "Busca el evento, si no existe, devuélveme el estado donde ya estaba".
-        return self.nodos.get(estado_actual, {}).get(evento, estado_actual)
+        # Búsqueda en la lista de adyacencia
+        if estado_actual in self.lista_adyacencia:
+            adyacentes = self.lista_adyacencia[estado_actual]
+            if evento in adyacentes:
+                return adyacentes[evento]
+        
+        # Si no hay transición definida, se permanece en el mismo vértice
+        return estado_actual
