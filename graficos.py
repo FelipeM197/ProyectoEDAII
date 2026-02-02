@@ -64,14 +64,24 @@ class GestorGrafico:
             self.assets['boss_dano'] = self.cargar_y_escalar(ruta_img + "boss_dano.png", (300, 300))
             self.assets['boss_atacando'] = self.cargar_y_escalar(ruta_img + "boss_atacando.png", (300, 300))
             
-            # Iconos y efectos
+            # --- ICONOS DE HABILIDADES Y EFECTOS ---
+            # Ataques Físicos
             self.assets['proy_disparo'] = self.cargar_y_escalar(ruta_img + "icono_disparo.png", (64, 64))
             self.assets['proy_molotov'] = self.cargar_y_escalar(ruta_img + "icono_molotov.png", (64, 64))
             self.assets['proy_cuchillo'] = self.cargar_y_escalar(ruta_img + "icono_cuchillo.png", (64, 64))
+            
+            # Debuffs / Ataques Mentales
+            self.assets['proy_calavera'] = self.cargar_y_escalar(ruta_img + "icono_intimidar.png", (64, 64))
+            self.assets['proy_grito'] = self.cargar_y_escalar(ruta_img + "icono_grito.png", (64, 64))
+            
+            # Buffs / Ayudas (Estos no vuelan, aparecen encima)
+            self.assets['icono_escudo'] = self.cargar_y_escalar(ruta_img + "icono_escudo.png", (80, 80))
+            self.assets['icono_curar'] = self.cargar_y_escalar(ruta_img + "icono_curar.png", (80, 80))
+
+            # Estados (Grafos)
             self.assets['est_aturdido'] = self.cargar_y_escalar(ruta_img + "estado_aturdido.png", (100, 100))
             self.assets['est_quemado'] = self.cargar_y_escalar(ruta_img + "estado_quemado.png", (100, 100))
             self.assets['est_sangrado'] = self.cargar_y_escalar(ruta_img + "estado_sangrado.png", (100, 100))
-
         except Exception as e:
             print(f"Error cargando: {e}")
 
@@ -95,13 +105,36 @@ class GestorGrafico:
         self.pantalla.blit(self.assets['fondo'], (0, 0))
         
         # 2. Personajes
-        # Posición Y=230 para alinearlos al suelo
         self.pantalla.blit(self.assets['jugador1'], (100, 230)) 
         self.pantalla.blit(self.assets['jugador2'], (350, 230)) 
         
         spr_boss = sprite_boss_override if sprite_boss_override else self.assets['boss_idle']
         self.pantalla.blit(spr_boss, (850, 230)) 
         
+        # --- [NUEVO] DIBUJADO DE ESTADOS PERSISTENTES ---
+        # Función auxiliar para dibujar iconos sobre la cabeza (Y=130)
+        def dibujar_estado(personaje, x_centro):
+            x_icono = x_centro # Ajuste para centrar
+            y_icono = 130
+            
+            # A. ESTADO DEL GRAFO
+            if personaje.estado_actual == "Quemado":
+                self.pantalla.blit(self.assets['est_quemado'], (x_icono, y_icono))
+            elif personaje.estado_actual == "Sangrado":
+                self.pantalla.blit(self.assets['est_sangrado'], (x_icono, y_icono))
+            elif personaje.estado_actual == "Aturdido":
+                self.pantalla.blit(self.assets['est_aturdido'], (x_icono, y_icono))
+                
+            # B. ESCUDO (PILA)
+            # Si la pila tiene elementos, dibujamos el escudo un poco más arriba o al lado
+            if len(personaje.pila_escudo) > 0:
+                self.pantalla.blit(self.assets['icono_escudo'], (x_icono, y_icono - 40)) # Un poco más arriba
+
+        # Dibujar estados de cada uno
+        dibujar_estado(p1, 200)  # P1 (Centro aprox X=200)
+        dibujar_estado(p2, 450)  # P2 (Centro aprox X=450)
+        dibujar_estado(boss, 950) # Boss (Centro aprox X=950)
+
         # 3. Caja de Texto
         pos_caja_x = (config.ANCHO - 1100) // 2
         pos_caja_y = config.ALTO - 210
@@ -186,33 +219,25 @@ class GestorGrafico:
             pygame.display.flip()
             pygame.time.delay(20)
 
-    # [CORRECCIÓN] Esta función ahora está DENTRO de la clase (identada)
     def animar_impacto(self, p1, p2, boss, log, objetivo_real, tipo_efecto):
         """
-        Dibuja el efecto (Fuego, Sangre, Aturdido) ENCIMA de la cabeza del objetivo.
+        Dibuja el efecto (Fuego, Sangre, Iconos de Buff) ENCIMA de la cabeza del objetivo.
         """
         start = pygame.time.get_ticks()
         
-        # --- CÁLCULO DE POSICIONES PARA EFECTOS ---
-        # Personajes están en Y=230 y miden 300px de alto.
-        # Queremos que el efecto flote sobre sus cabezas (aprox Y=130).
-        # Centramos X respecto a la imagen del personaje (ancho 300).
-        
+        # Cálculo de posición (Y=130 para flotar sobre cabeza)
         pos_efecto = (0, 0)
         sprite_boss = None
 
         if objetivo_real == boss:
-            # Boss X=850. Centro=1000. Efecto(100px) -> X=950.
             pos_efecto = (950, 130)
-            sprite_boss = self.assets['boss_dano']
+            if tipo_efecto not in ["CURACION", "ESCUDO", "MOTIVACION"]: # El boss hace mueca si le pegan
+                sprite_boss = self.assets['boss_dano']
         elif objetivo_real == p1:
-            # P1 X=100. Centro=250. Efecto -> X=200.
             pos_efecto = (200, 130)
         elif objetivo_real == p2:
-            # P2 X=350. Centro=500. Efecto -> X=450.
             pos_efecto = (450, 130)
         else:
-            # Fallback
             pos_efecto = (500, 130)
 
         while pygame.time.get_ticks() - start < 500:
@@ -220,10 +245,15 @@ class GestorGrafico:
             self.dibujar_barras_vida(p1, p2, boss)
             
             overlay = None
+            # --- MAPEO DE EFECTOS VISUALES ---
             if tipo_efecto == "CRITICO": overlay = self.assets['est_aturdido']
             elif tipo_efecto == "FUEGO": overlay = self.assets['est_quemado']
             elif tipo_efecto == "SANGRE": overlay = self.assets['est_sangrado']
-            elif tipo_efecto == "CURACION": overlay = self.assets['est_aturdido'] # Opcional
+            
+            # Nuevos iconos de soporte
+            elif tipo_efecto == "CURACION": overlay = self.assets['icono_curar']
+            elif tipo_efecto == "ESCUDO": overlay = self.assets['icono_escudo']
+            elif tipo_efecto == "MOTIVACION": overlay = self.assets['proy_grito'] # Usamos el grito como "¡Vamos!"
             
             if overlay:
                 self.pantalla.blit(overlay, pos_efecto)

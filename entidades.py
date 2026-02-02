@@ -36,11 +36,12 @@ class Personaje:
         self.energia_actual = energia
         self.energia_max = energia
         
-        # --- ESTRUCTURAS DE DATOS APLICADAS ---
-        # 1. PILA (Stack): Para el escudo por capas[cite: 75, 77, 78].
+        # PILA (Stack): Para el escudo por capas
         self.pila_escudo = [] 
+
+        self.turnos_quemado = 0
         
-        # 2. GRAFO: Guardamos el estado actual para transiciones en estructuras.py[cite: 17, 18, 19].
+        # Guardamos el estado actual para transiciones en estructuras.py[cite: 17, 18, 19].
         self.estado_actual = "Normal" 
         
         # Carga de habilidades desde el diccionario de configuración[cite: 66, 70].

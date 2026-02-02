@@ -52,6 +52,17 @@ P2_ENERGIA_MAX = 150    # (Reservado para uso futuro de maná/energía).
 # Cada habilidad es un diccionario {}. .
 # Si falta una clave (ej: "id" o "efecto_code"), el juego se cerrará con error.
 
+DATO_BOTIQUIN = {
+    "id": "h_botiquin",
+    "nombre": "Botiquín Táctico",
+    "dano": 0,
+    "costo": 0,             # Gratis o bajo costo
+    "tipo": "LIMPIEZA",     # Tipo especial para sistema_combate.py
+    "desc": "Antídoto: Elimina Fuego, Sangrado y Aturdimiento.",
+    "icono": "icono_curar.png",
+    "efecto_code": "cura"   # La clave para el Grafo
+}
+
 HABILIDADES_P1 = [
     {
         "id": "h_cuchillada",
@@ -61,7 +72,7 @@ HABILIDADES_P1 = [
         "tipo": "ATAQUE",
         "desc": "Sangrado: Recibirá daño hasta curarse.",
         "icono": "icono_cuchillo.png",
-        "efecto_code": "cuchillo"  # Conecta con Grafo: Normal -> Sangrado
+        "efecto_code": "cuchillo"
     },
     {
         "id": "h_molotov",
@@ -71,12 +82,12 @@ HABILIDADES_P1 = [
         "tipo": "ATAQUE",
         "desc": "Quemado: Daño constante por turno.",
         "icono": "icono_molotov.png",
-        "efecto_code": "fuego"     # Conecta con Grafo: Normal -> Quemado
+        "efecto_code": "fuego"
     },
     {
         "id": "h_motivacion",
         "nombre": "Motivación",
-        "dano": 0,                # No hace daño, es un buff
+        "dano": 0,
         "costo": 50,
         "tipo": "BUFF",
         "desc": "Motivado: +Crítico y -Costos.",
@@ -86,13 +97,14 @@ HABILIDADES_P1 = [
     {
         "id": "h_intimidacion",
         "nombre": "Intimidación",
-        "dano": 10,
+        "dano": 0,
         "costo": 25,
         "tipo": "DEBUFF",
         "desc": "Vulnerable: Enemigo recibe más daño.",
         "icono": "icono_intimidar.png",
-        "efecto_code": "insulto"   # Conecta con Grafo: Normal -> Aturdido/Vulnerable
-    }
+        "efecto_code": "insulto"
+    },
+    DATO_BOTIQUIN  # <--- AGREGADO AL FINAL (Índice 4 / Tecla 5)
 ]
 
 HABILIDADES_P2 = [
@@ -109,7 +121,7 @@ HABILIDADES_P2 = [
     {
         "id": "h_discurso",
         "nombre": "Discurso",
-        "dano": 15,
+        "dano": 0,
         "costo": 45,
         "tipo": "DEBUFF",
         "desc": "Aturdido: Rival pierde siguiente turno.",
@@ -119,7 +131,7 @@ HABILIDADES_P2 = [
     {
         "id": "h_bono",
         "nombre": "Bono de Guerra",
-        "dano": -30,              # Negativo = Curación
+        "dano": -30,
         "costo": 60,
         "tipo": "CURACION",
         "desc": "Curado: Recupera porción de vida.",
@@ -135,21 +147,22 @@ HABILIDADES_P2 = [
         "desc": "Ataque básico a distancia.",
         "icono": "icono_disparo.png",
         "efecto_code": "CRITICO"
-    }
+    },
+    DATO_BOTIQUIN  # <--- AGREGADO AL FINAL (Índice 4 / Tecla 5)
 ]
 # ==========================================
 # 5. MATEMÁTICAS DEL ÁRBOL DE DECISIÓN
 # ==========================================
 # Estos valores controlan la "suerte" en el combate.
 
-PROB_ACIERTO = 0.85   
+PROB_ACIERTO = 0.85
 PROB_CRITICO = 0.20  
 PROB_TROPIEZO = 0.10  
 
 # --- MULTIPLICADORES DE DAÑO ---
 MULT_CRITICO = 1.5    # El crítico hace 1.5 veces el daño normal (50% más).
 DANO_TROPIEZO = 10    # Daño fijo que recibe el personaje si se tropieza.
-
+DURACION_QUEMADO = 3
 # ==========================================
 # 6. CONFIGURACIÓN DEL NIVEL Y BOSS
 # ==========================================

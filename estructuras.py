@@ -105,128 +105,132 @@ class ArbolAtaque:
 
     def recorrer(self, nodo_actual):
         """
-        ALGORITMO RECURSIVO:
-        Esta función se llama a sí misma para bajar por el árbol hasta encontrar una hoja.
+        ALGORITMO RECURSIVO CON LOGS DE DEPURACIÓN
         """
-        # CASO BASE: Si llegamos al final, devolvemos el resultado.
+        # CASO BASE: Si es hoja, imprimimos el resultado final y retornamos
         if nodo_actual.es_hoja():
-            return nodo_actual.resultado_base
+            res = nodo_actual.resultado_base
+            print(f"   └── [HOJA LLEGADA]: {nodo_actual.nombre} -> {res[0]} (Mult: {res[2]})")
+            print("-" * 40)
+            return res
         
         # Tiramos el dado (número entre 0.0 y 1.0)
-        roll = random.random() 
+        roll = random.random()
+        
+        # DEBUG: Imprimir qué está pasando
+        print(f"[ÁRBOL] Pregunta: '{nodo_actual.nombre}'")
+        print(f"        Probabilidad necesaria: <= {nodo_actual.valor_probabilidad}")
+        print(f"        Dado obtenido: {roll:.3f}")
         
         # Decidimos a dónde ir
         if roll <= nodo_actual.valor_probabilidad:
+            print("        Respuesta: SÍ -> Rama Izquierda")
             return self.recorrer(nodo_actual.izquierda)
         else:
+            print("        Respuesta: NO -> Rama Derecha")
             return self.recorrer(nodo_actual.derecha)
 
     @staticmethod
     def ejecutar_ataque(atacante_atk):
+        print("\n" + "="*40)
+        print(" INICIANDO CÁLCULO DE ÁRBOL DE DECISIÓN")
+        print("="*40)
+        
         arbol = ArbolAtaque()
         
-        # Aquí recibimos la TUPLA del árbol (Tipo, Mensaje, Valor)
+        # Recorremos el árbol (esto imprimirá los logs anteriores)
         resultado_tupla = arbol.recorrer(arbol.raiz)
         
-        # Desempaquetamos la tupla manualmente para no confundir al programa
+        # Desempaquetamos la tupla manualmente
         tipo = resultado_tupla[0]
         mensaje = resultado_tupla[1]
-        valor = resultado_tupla[2] # Puede ser multiplicador (1.5) o daño fijo (10)
+        valor = resultado_tupla[2]
         
-        # 1. Calculamos el daño final según el tipo
+        # Calculamos daño final
         if tipo == "TROPIEZO":
-            dano_final = valor # En tropiezo, el valor es el daño fijo
+            dano_final = valor
         elif tipo == "FALLO":
             dano_final = 0
         else:
-            # En Normal o Crítico, el valor es un multiplicador
             dano_final = int(atacante_atk * valor)
 
-        # Devolvemos el objeto final pasando el 'dano_final' al campo correcto
         return ResultadoAtaque(
             tipo, 
             mensaje, 
             multiplicador_dano=valor if tipo not in ["TROPIEZO", "FALLO"] else 0,
             dano_fijo=valor if tipo == "TROPIEZO" else 0,
-            dano_real=dano_final # [COHERENCIA]: Aquí guardamos el daño final para main.py
+            dano_real=dano_final
         )
 
 # ==========================================
 # ESTRUCTURA 2: GRAFO DIRIGIDO
 # ==========================================
+# ==========================================
+# ESTRUCTURA 2: GRAFO DIRIGIDO
+# ==========================================
 class GrafoEfectos:
-    """
-    Implementación de un Grafo Dirigido utilizando Listas de Adyacencia.
-    Cada vértice representa un estado y cada arista representa una transición disparada por un evento.
-    """
     def __init__(self):
-        # Estructura principal: Diccionario donde la clave es el vértice origen
-        # y el valor es otro diccionario con las aristas {evento: vértice_destino}
         self.lista_adyacencia = {}
-        
-        # Construcción inicial de la lógica del juego
         self.construir_grafo_juego()
 
     def agregar_vertice(self, estado):
-        """
-        Inserta un nuevo vértice (estado) en el grafo si no existe.
-        """
         if estado not in self.lista_adyacencia:
             self.lista_adyacencia[estado] = {}
 
     def agregar_arista(self, origen, evento, destino):
-        """
-        Crea una arista dirigida desde el vértice 'origen' hacia 'destino',
-        etiquetada con el 'evento' que dispara la transición.
-        """
-        # Aseguramos que los vértices existan antes de conectar
         self.agregar_vertice(origen)
         self.agregar_vertice(destino)
-        
-        # Inserción de la arista en la lista de adyacencia
         self.lista_adyacencia[origen][evento] = destino
 
     def construir_grafo_juego(self):
         """
-        Define la topología del grafo específica para la lógica de combate.
-        Se crean los nodos y las conexiones manualmente.
+        Define la topología del grafo.
+        [MEJORA]: Ahora permitimos cambiar de un estado alterado a otro.
         """
-        # Transiciones desde el estado base "Normal"
+        # 1. Desde NORMAL (Lo que ya tenías)
         self.agregar_arista("Normal", "fuego", "Quemado")
         self.agregar_arista("Normal", "cuchillo", "Sangrado")
-        self.agregar_arista("Normal", "defensa", "Escudo")
-        self.agregar_arista("Normal", "motivacion", "Motivado")
         self.agregar_arista("Normal", "insulto", "Aturdido")
-        self.agregar_arista("Normal", "critico_recibido", "Vulnerable")
-        self.agregar_arista("Normal", "migra", "Deportado")
+        self.agregar_arista("Normal", "defensa", "Escudo")
 
-        # Transiciones de recuperación (Vuelta a la normalidad o cura)
-        self.agregar_arista("Quemado", "cura", "Curado")
-        self.agregar_arista("Quemado", "fin_turno", "Normal")
+        # 2. INTERCONEXIONES (Lo que faltaba)
+        # Si está Quemado y le pegan con Cuchillo -> Pasa a Sangrado
+        self.agregar_arista("Quemado", "cuchillo", "Sangrado")
+        self.agregar_arista("Quemado", "insulto", "Aturdido")
         
-        self.agregar_arista("Sangrado", "cura", "Curado")
-        self.agregar_arista("Sangrado", "fin_turno", "Normal")
+        # Si está Sangrando y le tiran Fuego -> Pasa a Quemado
+        self.agregar_arista("Sangrado", "fuego", "Quemado")
+        self.agregar_arista("Sangrado", "insulto", "Aturdido")
+
+        # Si está Aturdido, cualquier golpe fuerte lo despierta o cambia estado
+        self.agregar_arista("Aturdido", "fuego", "Quemado")
+        self.agregar_arista("Aturdido", "cuchillo", "Sangrado")
+
+        # 3. SALIDAS (Curaciones y Fin de efecto)
+        # La palabra clave "cura" limpia cualquier estado malo
+        self.agregar_arista("Quemado", "cura", "Normal")
+        self.agregar_arista("Sangrado", "cura", "Normal")
+        self.agregar_arista("Aturdido", "cura", "Normal")
         
+        # El escudo se rompe o se acaba
         self.agregar_arista("Escudo", "romper", "Normal")
-        self.agregar_arista("Escudo", "fin_turno", "Normal")
-        
-        self.agregar_arista("Motivado", "fin_turno", "Normal")
-        self.agregar_arista("Aturdido", "fin_turno", "Normal")
-        self.agregar_arista("Vulnerable", "recibir_golpe", "Normal")
-        self.agregar_arista("Deportado", "fin_turno", "Normal")
-        
-        self.agregar_arista("Curado", "listo", "Normal")
 
     def transicion(self, estado_actual, evento):
         """
-        Recorre el grafo buscando una arista válida para el estado y evento dados.
-        Si existe la conexión, retorna el nuevo estado; de lo contrario, mantiene el actual.
+        Recorre el grafo y retorna el nuevo estado.
+        [DEBUG]: Imprime en consola qué está pasando.
         """
-        # Búsqueda en la lista de adyacencia
+        nuevo_estado = estado_actual
+        
         if estado_actual in self.lista_adyacencia:
             adyacentes = self.lista_adyacencia[estado_actual]
             if evento in adyacentes:
-                return adyacentes[evento]
+                nuevo_estado = adyacentes[evento]
         
-        # Si no hay transición definida, se permanece en el mismo vértice
-        return estado_actual
+        # LOG EN CONSOLA (Lo que pediste)
+        if nuevo_estado != estado_actual:
+            print(f"[GRAFO] Transición: {estado_actual} + [{evento}] ---> {nuevo_estado}")
+        else:
+            print(f"[GRAFO] Intento fallido: {estado_actual} + [{evento}] (No hay arista)")
+            
+        return nuevo_estado
