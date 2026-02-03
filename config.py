@@ -2,24 +2,35 @@ import pygame
 
 """
 ARCHIVO DE CONFIGURACIÓN (CONSTANTES)
+
+INDICE RÁPIDO PARA MODIFICACIONES:
+-------------------------------------------------
+Línea 20  -> 1. Configuración de Pantalla y FPS
+Línea 30  -> 2. Paleta de Colores
+Línea 40  -> 3. Opciones del Menú de Pausa
+Línea 50  -> 4. Estadísticas y Habilidades (Jugadores)
+Línea 145 -> 5. Matemáticas y Probabilidades (Balanceo)
+Línea 160 -> 6. Configuración del Nivel y Jefe
+Línea 175 -> 7. Sistema de Diálogos (Textos)
+-------------------------------------------------
 """
 
 # ==========================================
 # 1. CONFIGURACIÓN DE PANTALLA Y SISTEMA
 # ==========================================
-# Resolución de la ventana. 
-# [MODIFICACIÓN]: Si cambian esto, asegúrense de que las imágenes de fondo
-# tengan la misma proporción para que no se vean estiradas.
+# Aquí establezco las dimensiones de la ventana del juego.
+# Tengo que cuidar que el fondo coincida con esta proporción.
 ANCHO = 1280
 ALTO = 720
 
 TITULO = "Rescate en el Norte: Operación Libertad"
-FPS = 60  # Fotogramas por segundo (Velocidad del juego)
+FPS = 60  # Defino la velocidad del bucle del juego (cuadros por segundo).
 
 # ==========================================
 # 2. COLORES (Formato RGB)
 # ==========================================
-# Se usan para textos y figuras geométricas si fallan las imágenes.
+# Defino una paleta básica de colores para usar en textos
+# o elementos gráficos si no cargan las imágenes.
 BLANCO = (255, 255, 255)
 NEGRO = (0, 0, 0)
 ROJO = (255, 0, 0)
@@ -29,9 +40,8 @@ AZUL = (0, 0, 255)
 # ==========================================
 # 3. MENÚ DE PAUSA
 # ==========================================
-# Opciones que aparecen al presionar la tecla 'P'.
-# [CUIDADO]: Si agregan una opción nueva aquí, deben programar su lógica
-# en el archivo main.py dentro del bucle de eventos.
+# Estas son las opciones que muestro cuando pauso el juego.
+# Nota: Si agrego algo aquí, necesito programar la acción en el main.
 OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # ==========================================
@@ -40,29 +50,41 @@ OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # --- JUGADOR 1 (DPS / Atacante) ---
 P1_NOMBRE = "Jugador 1"
-P1_VIDA_MAX = 100      # Vida total. Aumentar para hacerlo más resistente.
-P1_ATAQUE = 20         # Daño base de sus ataques normales.
-P1_ENERGIA_MAX = 10   
+P1_VIDA_MAX = 1      # Vida total actual del personaje.
+P1_ATAQUE = 20       # Daño base que hago con ataques normales.
+P1_ENERGIA_MAX = 100  
 
+# --- JUGADOR 2 (Tanque / Soporte) ---
 P2_NOMBRE = "Jugador 2"
-P2_VIDA_MAX = 150      # Vida total. Aumentar para hacerlo más resistente.
-P2_ATAQUE = 15         # Daño base de sus ataques normales.
-P2_ENERGIA_MAX = 150    # (Reservado para uso futuro de maná/energía).
+P2_VIDA_MAX = 1      # Vida total actual del segundo personaje.
+P2_ATAQUE = 15       # Daño base un poco más bajo que el P1.
+P2_ENERGIA_MAX = 150 # Reservo esto por si implemento maná luego.
 
-# Cada habilidad es un diccionario {}. .
-# Si falta una clave (ej: "id" o "efecto_code"), el juego se cerrará con error.
+# Definición de habilidades individuales.
+# Cada diccionario representa una acción posible en el combate.
 
 DATO_BOTIQUIN = {
     "id": "h_botiquin",
     "nombre": "Botiquín Táctico",
     "dano": 0,
-    "costo": 0,             # Gratis o bajo costo
-    "tipo": "LIMPIEZA",     # Tipo especial para sistema_combate.py
+    "costo": 0,             # Lo dejo gratis para que siempre se pueda usar.
+    "tipo": "LIMPIEZA",     # Tipo especial para quitar estados alterados.
     "desc": "Antídoto: Elimina Fuego, Sangrado y Aturdimiento.",
     "icono": "icono_curar.png",
-    "efecto_code": "cura"   # La clave para el Grafo
+    "efecto_code": "cura"   # Identificador para la lógica interna.
 }
 
+DATO_BASICO = {
+    "nombre": "Golpe Táctico",
+    "dano": 15,             # Ataque débil de emergencia.
+    "costo": 0,             # Sin costo de energía.
+    "tipo": "ATAQUE",
+    "desc": "Ataque cuerpo a cuerpo de emergencia.",
+    "icono": "icono_cuchillo.png",
+    "efecto_code": "fisico"
+}
+
+# Lista de habilidades asignadas al Jugador 1
 HABILIDADES_P1 = [
     {
         "id": "h_cuchillada",
@@ -104,9 +126,10 @@ HABILIDADES_P1 = [
         "icono": "icono_intimidar.png",
         "efecto_code": "insulto"
     },
-    DATO_BOTIQUIN  # <--- AGREGADO AL FINAL (Índice 4 / Tecla 5)
+    DATO_BOTIQUIN  # Añado el botiquín al final de la lista.
 ]
 
+# Lista de habilidades asignadas al Jugador 2
 HABILIDADES_P2 = [
     {
         "id": "h_muro",
@@ -148,27 +171,30 @@ HABILIDADES_P2 = [
         "icono": "icono_disparo.png",
         "efecto_code": "CRITICO"
     },
-    DATO_BOTIQUIN  # <--- AGREGADO AL FINAL (Índice 4 / Tecla 5)
+    DATO_BOTIQUIN  # El botiquín también lo tiene este jugador.
 ]
+
 # ==========================================
 # 5. MATEMÁTICAS DEL ÁRBOL DE DECISIÓN
 # ==========================================
-# Estos valores controlan la "suerte" en el combate.
+# Aquí configuro las probabilidades para controlar la suerte en los combates.
 
-PROB_ACIERTO = 0.85
-PROB_CRITICO = 0.20  
-PROB_TROPIEZO = 0.10  
+PROB_ACIERTO = 0.85   # Probabilidad base de golpear.
+PROB_CRITICO = 0.20   # Probabilidad de hacer un golpe crítico.
+PROB_TROPIEZO = 0.10  # Probabilidad de fallar y recibir daño propio.
 
 # --- MULTIPLICADORES DE DAÑO ---
-MULT_CRITICO = 1.5    # El crítico hace 1.5 veces el daño normal (50% más).
-DANO_TROPIEZO = 10    # Daño fijo que recibe el personaje si se tropieza.
-DURACION_QUEMADO = 3
+MULT_CRITICO = 1.5    # Si es crítico, multiplico el daño por 1.5.
+DANO_TROPIEZO = 10    # Daño fijo que me hago si me tropiezo.
+DURACION_QUEMADO = 3  # Turnos que dura el efecto de fuego.
+
 # ==========================================
 # 6. CONFIGURACIÓN DEL NIVEL Y BOSS
 # ==========================================
+# Lista de niveles. Aquí defino quién es el jefe y sus estadísticas.
 NIVELES = [
     {
-        "fondo": "escenario.png",       # Imagen de fondo (debe estar en la carpeta de sprites)
+        "fondo": "escenario.png",       # Archivo de imagen para el fondo.
         "boss_nombre": "Donald T.",
         "boss_vida": 300,             
         "boss_ataque": 15,              
@@ -179,8 +205,8 @@ NIVELES = [
 # ==========================================
 # 7. SISTEMA DE DIÁLOGOS (Flavor Text)
 # ==========================================
-# Frases aleatorias que aparecen en la caja de texto.
-# [MODIFICACIÓN]: Pueden agregar tantas frases como quieran entre las comillas.
+# Frases que el juego selecciona al azar para mostrar en la caja de texto.
+# Puedo agregar más frases simplemente añadiendo strings a las listas.
 
 FRASES_EXITO = [
     "¡Blanco acertado!", 
