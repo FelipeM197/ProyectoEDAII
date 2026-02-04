@@ -7,6 +7,7 @@ from entidades import Personaje, Habilidad, Boss
 from estructuras import GrafoEfectos, GrafoEstrategia, GrafoEstados
 from sistema_combate import ControladorCombate
 from recursos import AlmacenRecursos 
+from sistema_guardado import SistemaGuardado
 
 """
 PUNTO DE ENTRADA PRINCIPAL (MAIN LOOP)
@@ -45,9 +46,24 @@ def obtener_texto_habilidades(personaje):
 def main():
     # Iniciamos el motor de Pygame y la ventana.
     pygame.init()
+
+    # Asegurarnos de que el mixer esté iniciado (por si acaso recursos.py no lo hizo)
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
     pantalla = pygame.display.set_mode((config.ANCHO, config.ALTO))
     pygame.display.set_caption(config.TITULO)
     reloj = pygame.time.Clock()
+
+    # --- MÚSICA DE FONDO ---
+    try:
+        # Cargar el archivo de música
+        pygame.mixer.music.load(config.RUTA_MUSICA)
+        pygame.mixer.music.set_volume(0.3) # Volumen al 30% para no aturdir
+        # Reproducir en loop (-1 significa infinito)
+        pygame.mixer.music.play(-1)
+    except Exception as e:
+        print(f"No se pudo cargar la música: {e}")
     
     # Instancio mis módulos personalizados.
     # GestorGrafico se encarga de pintar y ControladorCombate de las reglas.
@@ -61,6 +77,8 @@ def main():
     
     # Carga de datos desde el archivo de configuración.
     # Creo los objetos reales (Instancias) usando los moldes de clases.
+    sistema = SistemaGuardado()
+
     datos_nivel = config.NIVELES[0]
     p1 = Personaje(config.P1_NOMBRE, config.P1_VIDA_MAX, config.P1_ATAQUE, config.P1_ENERGIA_MAX, config.HABILIDADES_P1)
     p2 = Personaje(config.P2_NOMBRE, config.P2_VIDA_MAX, config.P2_ATAQUE, config.P2_ENERGIA_MAX, config.HABILIDADES_P2)
@@ -73,11 +91,12 @@ def main():
     except AttributeError:
         atk_basico = Habilidad({"nombre": "Básico", "dano": 10, "costo": 0, "tipo":"ATAQUE", "desc":"", "icono":"", "efecto_code":"fisico"})
 
-    # Lista para alternar turnos entre mis dos soldados.
+    # Lista para alternar turnos entre los dos soldados.
     equipo = [p1, p2]
     indice_turno = 0
-    
-    # Variables de Control de Flujo (State Machine).
+    turno_jugador = True # Por defecto empieza el jugador
+
+    # Variables de Control de Flujo (Valores por defecto)
     estado = "MENU"      # Puede ser: MENU, JUEGO, VICTORIA, DERROTA
     pausado = False
     
@@ -90,15 +109,44 @@ def main():
     boss_perdio_turno = False     
     ataque_realizado = False      # Ya eligió una acción?
     
-    # Preparación del primer turno.
-    atacante_actual = equipo[indice_turno]
-    mensaje_log = f"¡Misión Iniciada!\nTurno: {atacante_actual.nombre}\n{obtener_texto_habilidades(atacante_actual)}"
-    turno_jugador = True
-    
     # Variables para la interfaz del menú de pausa.
     indice_pausa = 0
     mostrar_guardado_timer = 0
 
+    # Intentar cargar partida al iniciar
+    datos_cargados = sistema.cargar_partida()
+    
+    if datos_cargados:
+        print("Datos encontrados. Cargando partida...")
+        # Restaurar variables globales
+        turno_jugador = datos_cargados["global"]["es_turno_jugador"]
+        indice_turno = datos_cargados["global"]["indice_actual"]
+        
+        # Restaurar personajes
+        sistema.aplicar_datos(p1, datos_cargados["jugador1"])
+        sistema.aplicar_datos(p2, datos_cargados["jugador2"])
+        sistema.aplicar_datos(jefe, datos_cargados["jefe"])
+        
+        # Actualizar referencia del atacante actual
+        atacante_actual = equipo[indice_turno]
+        
+        # Configuración para entrar directo a la acción
+        estado = "JUEGO"
+        # Marcamos efectos como procesados para que no salten quemaduras al cargar
+        efectos_ya_procesados = True 
+        
+        # Mensaje de bienvenida y PAUSA
+        mensaje_log = f"Partida recuperada.\nTurno de: {atacante_actual.nombre}\n>> PRENSA ESPACIO <<"
+        
+        # Forzamos la espera. Al dar espacio, el bucle principal
+        # se encargará de refrescar el menú de habilidades automáticamente.
+        esperando_continuar = True 
+
+    else:
+        # Si no hay datos, iniciamos normal
+        atacante_actual = equipo[indice_turno]
+        mensaje_log = f"¡Misión Iniciada!\nTurno: {atacante_actual.nombre}\n{obtener_texto_habilidades(atacante_actual)}"
+    
     while True:
         # --- A. CONTROL DE EVENTOS (TECLADO/RATÓN) ---
         # Aquí capturo todo lo que hace el usuario.
@@ -107,16 +155,22 @@ def main():
                 pygame.quit(); sys.exit()
             
             if evento.type == pygame.KEYDOWN:
-                # 1. Lógica del Menú Principal
+                #  Lógica del Menú Principal
                 if estado == "MENU":
-                    if evento.key == pygame.K_RETURN: estado = "JUEGO"
+                    if evento.key == pygame.K_RETURN:
+                        
+                        # --- REPRODUCIR SONIDO START ---
+                        sfx = motor.sonidos.get('sfx_start') # Obtenemos el sonido
+                        if sfx: sfx.play() # Lo reproducimos
+
+                        estado = "JUEGO"
                 
-                # 2. Pantallas de fin de juego
+                # Pantallas de fin de juego
                 elif estado in ["VICTORIA", "DERROTA"]:
                     if evento.key == pygame.K_RETURN:
                         pygame.quit(); sys.exit() # Aquí podría poner un reset()
 
-                # 3. Lógica durante el combate
+                # Lógica durante el combate
                 elif estado == "JUEGO":
                     # Tecla P para pausar
                     if evento.key == pygame.K_p:
@@ -130,7 +184,13 @@ def main():
                             sel = config.OPCIONES_PAUSA[indice_pausa]
                             if sel == "CONTINUAR": pausado = False
                             elif sel == "SALIR": pygame.quit(); sys.exit()
-                            elif sel == "GUARDAR": mostrar_guardado_timer = 90
+                            elif sel == "GUARDAR":
+                                # Llamamos al sistema para guardar los datos reales
+                                exito = sistema.guardar_partida(p1, p2, jefe, turno_jugador, indice_turno)
+                                
+                                # Si funcionó, mostramos el mensaje visual
+                                if exito:
+                                    mostrar_guardado_timer = 90
                     
                     else:
                         # AVANCE DE TEXTO (Barra Espaciadora)
@@ -215,9 +275,11 @@ def main():
         if estado == "JUEGO":
             if jefe.vida_actual <= 0:
                 estado = "VICTORIA"
+                sistema.borrar_partida() 
             
             if not p1.esta_vivo() and not p2.esta_vivo():
                 estado = "DERROTA"
+                sistema.borrar_partida()
 
         # --- C. PROCESAMIENTO DE EFECTOS PASIVOS ---
         # Esto ocurre justo al iniciar el turno, antes de que nadie mueva un dedo.

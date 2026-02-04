@@ -32,6 +32,9 @@ class GestorGrafico:
         # Hacemos esto para escribir menos código luego: en vez de llamar a
         # self.almacen.assets['algo'] cada vez, solo usamos self.assets['algo'].
         self.assets = self.almacen.assets
+
+        # Acceso directo a los sonidos
+        self.sonidos = self.almacen.sonidos
         
         # Configuración de tipografías.
         # Usamos un bloque try-except para que el juego no se rompa si el sistema
@@ -196,24 +199,31 @@ class GestorGrafico:
         overlay = pygame.Surface((config.ANCHO, config.ALTO)); overlay.set_alpha(200); overlay.fill((0, 50, 0))
         self.pantalla.blit(overlay, (0, 0))
         
-        t = pygame.font.SysFont("Consolas", 60, bold=True).render("¡RESCATASTE A MADURO :D!", True, (100, 255, 100))
-        self.pantalla.blit(t, t.get_rect(center=(config.ANCHO//2, 150)))
-        
-        if 'vip_victoria' in self.assets:
-            self.pantalla.blit(self.assets['vip_victoria'], (config.ANCHO//2 - 150, 250))
+        # Imagen Centrada y Grande
+        if 'victoria_final' in self.assets:
+            img = self.assets['victoria_final']
+            # Esta línea mágica calcula el centro exacto de la pantalla
+            rect_img = img.get_rect(center=(config.ANCHO//2, config.ALTO//2))
+            self.pantalla.blit(img, rect_img)
             
+        # Texto de Salida
         s = self.fuente_ui.render("Presiona ENTER para Salir", True, self.BLANCO)
-        self.pantalla.blit(s, s.get_rect(center=(config.ANCHO//2, 600)))
+        self.pantalla.blit(s, s.get_rect(center=(config.ANCHO//2, config.ALTO - 100)))
 
     def dibujar_derrota(self):
         overlay = pygame.Surface((config.ANCHO, config.ALTO)); overlay.set_alpha(200); overlay.fill((50, 0, 0))
         self.pantalla.blit(overlay, (0, 0))
         
-        t = pygame.font.SysFont("Consolas", 60, bold=True).render("¡MISIÓN FALLIDA!", True, (255, 50, 50))
-        self.pantalla.blit(t, t.get_rect(center=(config.ANCHO//2, 300)))
-        
-        s = self.fuente_ui.render("Tus soldados han caído. ENTER para Salir", True, self.BLANCO)
-        self.pantalla.blit(s, s.get_rect(center=(config.ANCHO//2, 400)))
+        # Verificamos si la imagen cargó bien antes de dibujarla
+        if 'game_over' in self.assets:
+            img = self.assets['game_over']
+            # Calculamos el centro exacto de la pantalla
+            rect_img = img.get_rect(center=(config.ANCHO//2, config.ALTO//2))
+            self.pantalla.blit(img, rect_img)
+            
+        # 3. Texto de Salida (Abajo)
+        s = self.fuente_ui.render("ENTER para Salir", True, self.BLANCO)
+        self.pantalla.blit(s, s.get_rect(center=(config.ANCHO//2, config.ALTO - 100)))
 
     def dibujar_menu(self):
         self.pantalla.blit(self.assets["fondo_menu"], (0, 0))

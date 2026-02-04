@@ -18,7 +18,7 @@ Línea 65 -> Método seguro de carga (Manejo de errores/Placeholders)
 
 class AlmacenRecursos:
     """
-    Contenedor centralizado de imágenes.
+    Contenedor centralizado de imágenes y sonidos.
     
     Cargar imágenes es una operación lenta porque implica leer el disco duro.
     Por eso lo hacemos todo aquí una sola vez al arrancar el juego, guardamos
@@ -29,9 +29,20 @@ class AlmacenRecursos:
         # Diccionario clave-valor. Ejemplo: "jugador1" -> <Objeto Imagen Pygame>
         self.assets = {}
         
+        # --- NUEVO: Diccionario para efectos de sonido ---
+        self.sonidos = {} 
+        
         # Ruta base donde tengo guardados los archivos.
         # Es útil tenerla en una variable por si decido mover la carpeta luego.
         self.ruta_img = "sprites_finales/img/"
+        
+        # --- NUEVO: Inicializar el sistema de audio (Mixer) ---
+        # Es necesario encender el "motor de audio" de Pygame antes de cargar nada.
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+        except Exception as e:
+            print(f"Advertencia: No se pudo iniciar el audio: {e}")
         
         # Arrancamos la carga automática.
         self.cargar_todos()
@@ -65,7 +76,10 @@ class AlmacenRecursos:
         self.cargar('jugador2_dano', "soldado2_dano.png", (300, 300)) 
 
         # Imagen especial para la pantalla de victoria.
-        self.cargar('vip_victoria', "vip_victoria.png", (300, 300))
+        self.cargar('victoria_final', "vip_victoria.png", (1000, 650)) # Ojo: Asegúrate que el nombre coincida con tu carpeta
+
+        #imagen especial para la pantalla de derrota.
+        self.cargar('game_over', 'game_over.png', (1000, 650))
 
         # --- 3. ICONOS, PROYECTILES Y EFECTOS ---
         # Iconos pequeños para las habilidades y efectos visuales.
@@ -82,16 +96,14 @@ class AlmacenRecursos:
         self.cargar('est_quemado', "estado_quemado.png", (100, 100))
         self.cargar('est_sangrado', "estado_sangrado.png", (100, 100))
 
+        # --- 4. NUEVO: CARGA DE SONIDOS ---
+        # Cargamos el efecto de sonido "Start". 
+        # La música de fondo no se carga aquí, se hace stream en el main.
+        self.cargar_sonido('sfx_start', config.RUTA_SFX_START)
+
     def cargar(self, nombre_clave, nombre_archivo, tamano):
         """
-        Método 'seguro' de carga.
-        
-        Si usamos pygame.image.load() directamente y el archivo no existe (ej. error de dedo),
-        el juego se cierra de golpe (crash).
-        
-        Aquí usamos un bloque try-except. Si la imagen falla, creamos un cuadrado 
-        color magenta (el color universal de 'textura perdida') y seguimos ejecutando.
-        Esto me permite probar el juego aunque me falten assets.
+        Método 'seguro' de carga de IMÁGENES.
         """
         ruta_completa = os.path.join(self.ruta_img, nombre_archivo)
         
@@ -110,3 +122,19 @@ class AlmacenRecursos:
             surf = pygame.Surface(tamano)
             surf.fill((255, 0, 255)) # RGB: Magenta brillante
             self.assets[nombre_clave] = surf
+
+    # --- NUEVO MÉTODO ---
+    def cargar_sonido(self, nombre_clave, ruta_archivo):
+        """
+        Método seguro para cargar EFECTOS DE SONIDO (WAV).
+        """
+        try:
+            # pygame.mixer.Sound carga el archivo completo en memoria RAM.
+            # Ideal para sonidos cortos como disparos, golpes o botones.
+            sonido = pygame.mixer.Sound(ruta_archivo)
+            sonido.set_volume(0.5) # Volumen al 50% por defecto
+            self.sonidos[nombre_clave] = sonido
+        except Exception as e:
+            print(f"[ERROR AUDIO] No se cargó '{ruta_archivo}': {e}")
+            # Si falla, guardamos None para evitar errores al intentar reproducirlo
+            self.sonidos[nombre_clave] = None
