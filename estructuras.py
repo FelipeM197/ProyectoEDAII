@@ -18,7 +18,7 @@ Línea 25 -> Clase ResultadoAtaque (Paquete de datos)
 Línea 40 -> Nodos del Árbol de Decisión
 Línea 65 -> Clase ArbolAtaque (Lógica de combate)
 Línea 145 -> Clase GrafoEfectos (Máquina de estados)
-Línea 258 -> Clase GrafoEstados (Máquina de estados - BOSS)
+Línea 258 -> Clase GrafoEstados (Máquina de estados - jefe)
 Línea 343 -> Clase GrafoEstrategia (Estrategias del jefe) 
 """
 
@@ -265,7 +265,15 @@ class GrafoEstados:
         # Se usa el mismo sistema de lista de adyacencia que GrafoEfectos
         self.lista_adyacencia = {}
         self.construir_grafo_comportamiento()
-
+        self.estado_actual = "NORMAL" 
+        self.bonus_estados = {
+            "NORMAL":    {"ataque": 1.0, "defensa": 1.0},
+            "FURIA":     {"ataque": 1.5, "defensa": 0.8},
+            "DEFENSIVO": {"ataque": 0.7, "defensa": 1.5},
+            "CONFUSION": {"ataque": 0.5, "defensa": 0.5},
+            "ESTRESADO": {"ataque": 1.2, "defensa": 0.9}
+            }
+            
     def agregar_vertice(self, estado):
         """Añade un estado si no existe."""
         if estado not in self.lista_adyacencia:
@@ -311,29 +319,26 @@ class GrafoEstados:
         
         return nuevo_estado
 
-    def obtener_evento_desde_stats(self, vida_actual, vida_max, estres_actual):
-        """
-        Helper que traduce números (HP/ST) a 'Eventos' discretos para el grafo.
-        Esto conecta la lógica matemática con la lógica de grafos.
-        """
-        porcentaje_vida = (vida_actual / vida_max) * 100
+    def actualizar_estado(self, boss):
+        # 1. Traducir números a eventos
+        evento = "neutro"
+        porc_vida = (boss.vida_actual / boss.vida_max) * 100
         
-        # Prioridad 1: Colapso (Mucha presión y poca vida)
-        if estres_actual >= 90 and porcentaje_vida < 20:
-            return "colapso"
-            
-        # Prioridad 2: Estrés Alto (Detona Furia)
-        if estres_actual >= 60:
-            return "estres_alto"
-            
-        # Prioridad 3: Vida Baja (Detona Defensa)
-        if porcentaje_vida < 35:
-            return "vida_baja"
-            
-        # Prioridad 4: Recuperación (Si está sano y calmado)
-        if porcentaje_vida > 60 and estres_actual < 20:
-            return "recuperacion"
-        return "neutro"
+        if boss.st >= 80: evento = "estres_alto"
+        elif porc_vida < 30: evento = "vida_baja"
+        elif boss.st >= 40 and boss.st < 80: evento = "presion"
+        elif boss.st < 20 and porc_vida > 50: evento = "calmado"
+        elif porc_vida > 60: evento = "recuperado"
+        
+        # 2. Calcular transición
+        nuevo = self.transicion(self.estado_actual, evento)
+        
+        if nuevo != self.estado_actual:
+            print(f"[IA BOSS] Cambio: {self.estado_actual} -> {nuevo} (Evento: {evento})")
+            self.estado_actual = nuevo
+
+    def obtener_bonificadores(self):
+        return self.bonus_estados.get(self.estado_actual, {"ataque": 1.0, "defensa": 1.0})
 
     
 # ==========================================
