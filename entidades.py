@@ -136,7 +136,18 @@ class Personaje:
 
 class Boss(Personaje):
     def __init__(self, nombre, vida, ataque, energia, habilidades):
-        # Uso de super() para invocar el constructor de la clase padre (Personaje).
-        # Esto garantiza que el Boss tenga todos los atributos base (vida, pila de escudos, etc.)
-        # sin tener que duplicar el código de inicialización.
         super().__init__(nombre, vida, ataque, energia, habilidades)
+        # Variable requerida por el Grafo de Comportamiento
+        self.st = 0      # Nivel Inicial: 0
+        self.st_max = 100 
+    
+    def aumentar_estres(self, cantidad):
+        self.st += cantidad
+        if self.st > self.st_max:
+            self.st = self.st_max
+            
+    def reducir_estres(self, cantidad):
+        self.st -= cantidad
+        if self.st < 0:
+            self.st = 0
+        

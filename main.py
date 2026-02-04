@@ -3,8 +3,8 @@ import sys
 import random
 import config
 from graficos import GestorGrafico
-from entidades import Personaje, Habilidad
-from estructuras import GrafoEfectos
+from entidades import Personaje, Habilidad, Boss
+from estructuras import GrafoEfectos, GrafoEstrategia, GrafoEstados
 from sistema_combate import ControladorCombate
 from recursos import AlmacenRecursos 
 from sistema_guardado import SistemaGuardado
@@ -70,6 +70,10 @@ def main():
     motor = GestorGrafico(pantalla)
     grafo_estados = GrafoEfectos()
     combate = ControladorCombate(grafo_estados, motor)
+
+    # Instancias de la IA del Jefe
+    cerebro_comportamiento = GrafoEstados() 
+    cerebro_estrategia = GrafoEstrategia()
     
     # Carga de datos desde el archivo de configuración.
     # Creo los objetos reales (Instancias) usando los moldes de clases.
@@ -78,7 +82,7 @@ def main():
     datos_nivel = config.NIVELES[0]
     p1 = Personaje(config.P1_NOMBRE, config.P1_VIDA_MAX, config.P1_ATAQUE, config.P1_ENERGIA_MAX, config.HABILIDADES_P1)
     p2 = Personaje(config.P2_NOMBRE, config.P2_VIDA_MAX, config.P2_ATAQUE, config.P2_ENERGIA_MAX, config.HABILIDADES_P2)
-    jefe = Personaje(datos_nivel["boss_nombre"], datos_nivel["boss_vida"], datos_nivel["boss_ataque"], 100, [])
+    jefe = Boss(datos_nivel["boss_nombre"], datos_nivel["boss_vida"], datos_nivel["boss_ataque"], 100, [])
     
     # Habilidad de emergencia (Tecla Q).
     # La defino aquí 'hardcoded' por seguridad, por si falla la carga externa.
@@ -308,55 +312,63 @@ def main():
                     if pierde_turno: mensaje_log += "\n(Aturdido: Pierde turno)"
 
         # --- D. INTELIGENCIA ARTIFICIAL (BOSS) ---
-        # Lógica simple: Esperar -> Elegir Objetivo -> Atacar.
         if estado == "JUEGO" and not turno_jugador and not pausado and not esperando_continuar and not ataque_realizado:
             
             if boss_perdio_turno:
-                pass # Si está aturdido, no hace nada y espera a que el jugador pulse espacio.
+                pass 
             else:
-                # Pequeña pausa dramática para que no ataque instantáneamente.
                 pygame.time.delay(500)
-                mensaje_log = f"Turno: {jefe.nombre}\nPreparando ataque..."
                 
-                # Override del sprite: mostramos al boss en pose de ataque.
-                motor.dibujar_interfaz(p1, p2, jefe, mensaje_log, sprite_boss_override=motor.assets['boss_atacando'])
-                motor.dibujar_barras_vida(p1, p2, jefe)
-                pygame.display.flip(); pygame.time.delay(800)
-
-                # Selección de objetivo (Random entre los vivos)
+                # 1. ACTUALIZAR ESTADO DE ÁNIMO (FSM)
+                # El grafo decide si está Normal, Furioso o Defensivo según HP y Estrés
+                cerebro_comportamiento.actualizar_estado(jefe)
+                estado_boss = cerebro_comportamiento.estado_actual
+                bonus = cerebro_comportamiento.obtener_bonificadores()
+                
+                mensaje_log = f"Turno: {jefe.nombre} [{estado_boss}]"
+                
+                # 2. SELECCIONAR ESTRATEGIA ÓPTIMA (ALGORITMO DE PRIM)
+                # El grafo elige el mejor nodo (A, B... F) basándose en costos y elegibilidad
+                nodo_ataque = cerebro_estrategia.seleccionar_siguiente_ataque(jefe)
+                
+                # 3. EJECUTAR LA ACCIÓN DEL NODO
+                # Traducimos los datos abstractos del nodo a acciones del juego
+                dmg_base = jefe.ataque_base * bonus["ataque"]
+                
+                # Definir objetivo (Random por ahora)
                 candidatos = [p for p in equipo if p.esta_vivo()]
-                if not candidatos: candidatos = [p1] 
+                objetivo = random.choice(candidatos) if candidatos else p1
+                
+                # Lógica según el tipo de efecto del nodo (Tabla 4 PDF)
+                efecto = nodo_ataque.efecto_tipo
+                valor = nodo_ataque.valor_efecto # Porcentaje (ej. 0.05)
+                
+                msg_accion = ""
+                dano_final = 0
+                
+                if "dano" in efecto:
+                    # Daño porcentual basado en la vida MAX del objetivo (o ataque del boss)
+                    # Aquí usaremos el ataque del boss escalado por el porcentaje del nodo
+                    factor_dano = 1.0 + valor # Ej: 0.20 -> 120% daño
+                    dano_final = int(dmg_base * factor_dano)
+                    
+                    res = objetivo.recibir_dano(dano_final)
+                    msg_accion = f"¡{nodo_ataque.nombre}!\nDaño: {dano_final}"
+                    
+                    # Animación
+                    motor.animar_proyectil(p1, p2, jefe, msg_accion, (950, 200), (300, 380), 'proy_molotov')
+                    motor.animar_impacto(p1, p2, jefe, msg_accion, objetivo, "FUEGO")
 
-                objetivo = random.choice(candidatos)
-                msg_ataque = f"Turno: {jefe.nombre}\nLanza ataque a {objetivo.nombre}"
-                
-                # Coordenadas para la animación del proyectil
-                origen_disparo = (950, 200)
-                destino_disparo = (250, 380) if objetivo == p1 else (500, 380)
+                if "cura" in efecto:
+                    cura = int(jefe.vida_max * valor)
+                    jefe.curar(cura)
+                    msg_accion += f"\nSe cura {cura} HP."
+                    motor.animar_impacto(p1, p2, jefe, msg_accion, jefe, "CURACION")
 
-                motor.animar_proyectil(p1, p2, jefe, msg_ataque, origen_disparo, destino_disparo, 'proy_molotov')
-                
-                # Aplicación del daño
-                res = objetivo.recibir_dano(jefe.ataque_base)
-                msg_final = f"{msg_ataque}\nDaño recibido: {jefe.ataque_base}"
-                if isinstance(res, str): msg_final += f"\n{res}"
-                
-                # El Boss aplica fuego por defecto (lógica hardcoded simple)
-                evento_boss = "fuego" 
-                nuevo_estado_jugador = grafo_estados.transicion(objetivo.estado_actual, evento_boss)
-                
-                if nuevo_estado_jugador != objetivo.estado_actual:
-                    objetivo.estado_actual = nuevo_estado_jugador
-                    if nuevo_estado_jugador == "Quemado":
-                        objetivo.turnos_quemado = config.DURACION_QUEMADO
-                    msg_final += f"\n¡{objetivo.nombre} ahora está {nuevo_estado_jugador}!"
-
-                # Animación final de impacto
-                motor.animar_impacto(p1, p2, jefe, msg_final, objetivo, "FUEGO")
-                mensaje_log = msg_final
+                # Actualizar log y pasar turno
+                mensaje_log = f"{mensaje_log}\n{msg_accion}"
                 ataque_realizado = True 
                 esperando_continuar = True
-
         # --- E. RENDERIZADO (DIBUJADO) ---
         # Dependiendo del estado global, le pido al motor que dibuje una cosa u otra.
         if estado == "MENU": 

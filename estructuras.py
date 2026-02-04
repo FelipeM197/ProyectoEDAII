@@ -1,5 +1,6 @@
 import random
 import config
+import heapq
 
 """
 LÓGICA MATEMÁTICA Y DE DECISIONES
@@ -17,6 +18,8 @@ Línea 25 -> Clase ResultadoAtaque (Paquete de datos)
 Línea 40 -> Nodos del Árbol de Decisión
 Línea 65 -> Clase ArbolAtaque (Lógica de combate)
 Línea 145 -> Clase GrafoEfectos (Máquina de estados)
+Línea 258 -> Clase GrafoEstados (Máquina de estados - jefe)
+Línea 343 -> Clase GrafoEstrategia (Estrategias del jefe) 
 """
 
 # ==========================================
@@ -219,23 +222,17 @@ class GrafoEfectos:
         self.agregar_arista("Normal", "defensa", "Escudo")
 
         # Interacciones entre estados alterados.
-        # Esto permite dinámicas complejas, como cambiar un estado por otro.
-        self.agregar_arista("Quemado", "cuchillo", "Sangrado") # El sangrado sobrescribe al fuego.
+        self.agregar_arista("Quemado", "cuchillo", "Sangrado")
         self.agregar_arista("Quemado", "insulto", "Aturdido")
-        
-        self.agregar_arista("Sangrado", "fuego", "Quemado") # El fuego cauteriza/sobrescribe el sangrado.
+        self.agregar_arista("Sangrado", "fuego", "Quemado")
         self.agregar_arista("Sangrado", "insulto", "Aturdido")
-
-        # El aturdimiento es frágil; cualquier daño físico lo rompe y aplica su propio efecto.
         self.agregar_arista("Aturdido", "fuego", "Quemado")
         self.agregar_arista("Aturdido", "cuchillo", "Sangrado")
 
         # Rutas de salida (Curación o finalización de efecto).
-        # El evento 'cura' sirve como reset universal para volver al estado normal.
         self.agregar_arista("Quemado", "cura", "Normal")
         self.agregar_arista("Sangrado", "cura", "Normal")
         self.agregar_arista("Aturdido", "cura", "Normal")
-        
         self.agregar_arista("Escudo", "romper", "Normal")
 
     def transicion(self, estado_actual, evento):
@@ -245,16 +242,236 @@ class GrafoEfectos:
         """
         nuevo_estado = estado_actual
         
-        # Verificamos si existe una transición definida para este par Estado-Evento.
+        # Se verifica si existe una transición definida para este par Estado-Evento.
         if estado_actual in self.lista_adyacencia:
             adyacentes = self.lista_adyacencia[estado_actual]
             if evento in adyacentes:
                 nuevo_estado = adyacentes[evento]
-        
-        # Feedback en consola para entender el flujo durante la partida.
         if nuevo_estado != estado_actual:
             print(f"[GRAFO] Transición: {estado_actual} + [{evento}] ---> {nuevo_estado}")
         else:
             print(f"[GRAFO] Intento fallido: {estado_actual} + [{evento}] (No hay arista)")
             
         return nuevo_estado
+
+# ==========================================
+# GRAFO DEL JEFE (ESTADOS)
+# ==========================================
+class GrafoEstados:
+    """    
+    Controla la actitud del jefe según sus variables de Vida (HP) y Estrés (ST).
+    """
+    def __init__(self):
+        # Se usa el mismo sistema de lista de adyacencia que GrafoEfectos
+        self.lista_adyacencia = {}
+        self.construir_grafo_comportamiento()
+        self.estado_actual = "NORMAL" 
+        self.bonus_estados = {
+            "NORMAL":    {"ataque": 1.0, "defensa": 1.0},
+            "FURIA":     {"ataque": 1.5, "defensa": 0.8},
+            "DEFENSIVO": {"ataque": 0.7, "defensa": 1.5},
+            "CONFUSION": {"ataque": 0.5, "defensa": 0.5},
+            "ESTRESADO": {"ataque": 1.2, "defensa": 0.9}
+            }
+            
+    def agregar_vertice(self, estado):
+        """Añade un estado si no existe."""
+        if estado not in self.lista_adyacencia:
+            self.lista_adyacencia[estado] = {}
+
+    def agregar_arista(self, origen, evento, destino):
+        """Crea una transición: Estado A + Evento -> Estado B"""
+        self.agregar_vertice(origen)
+        self.agregar_vertice(destino)
+        self.lista_adyacencia[origen][evento] = destino
+
+    def construir_grafo_comportamiento(self):
+        # 1. Transiciones desde NORMAL (Estado Base)
+        self.agregar_arista("NORMAL", "estres_alto", "FURIA")
+        self.agregar_arista("NORMAL", "vida_baja", "DEFENSIVO")
+        self.agregar_arista("NORMAL", "golpe_critico", "CONFUSION")
+
+        # 2. Transiciones desde FURIA (Berserker)
+        self.agregar_arista("FURIA", "calmado", "NORMAL")
+        self.agregar_arista("FURIA", "colapso", "CONFUSION")
+
+        # 3. Transiciones desde DEFENSIVO (Tortuga)
+        self.agregar_arista("DEFENSIVO", "recuperacion", "NORMAL")
+        self.agregar_arista("DEFENSIVO", "estres_alto", "FURIA")
+
+        # 4. Transiciones desde CONFUSION (Estado Vulnerable)
+        self.agregar_arista("CONFUSION", "recuperacion", "NORMAL")
+        self.agregar_arista("CONFUSION", "ataque_recibido", "FURIA")
+
+    def transicion(self, estado_actual, evento):
+        """
+        Calcula el siguiente estado dado el evento actual.
+        """
+        nuevo_estado = estado_actual
+        
+        # Se verifica si existe el estado y el evento en la lista de adyacencia
+        if estado_actual in self.lista_adyacencia:
+            adyacentes = self.lista_adyacencia[estado_actual]
+            if evento in adyacentes:
+                nuevo_estado = adyacentes[evento]
+        if nuevo_estado != estado_actual:
+            print(f"[IA TRUMP] Cambio de Humor: {estado_actual} + [{evento}] ---> {nuevo_estado}")
+        
+        return nuevo_estado
+
+    def actualizar_estado(self, boss):
+        # 1. Traducir números a eventos
+        evento = "neutro"
+        porc_vida = (boss.vida_actual / boss.vida_max) * 100
+        
+        if boss.st >= 80: evento = "estres_alto"
+        elif porc_vida < 30: evento = "vida_baja"
+        elif boss.st >= 40 and boss.st < 80: evento = "presion"
+        elif boss.st < 20 and porc_vida > 50: evento = "calmado"
+        elif porc_vida > 60: evento = "recuperado"
+        
+        # 2. Calcular transición
+        nuevo = self.transicion(self.estado_actual, evento)
+        
+        if nuevo != self.estado_actual:
+            print(f"[IA BOSS] Cambio: {self.estado_actual} -> {nuevo} (Evento: {evento})")
+            self.estado_actual = nuevo
+
+    def obtener_bonificadores(self):
+        return self.bonus_estados.get(self.estado_actual, {"ataque": 1.0, "defensa": 1.0})
+
+    
+# ==========================================
+# GRAFO DE ESTRATEGIA (PONDERADO)
+# ==========================================
+class NodoEstrategia:
+    def __init__(self, codigo, nombre, efecto_tipo, valor_efecto, boost=None, costo_hp=0):
+        self.codigo = codigo
+        self.nombre = nombre
+        self.efecto_tipo = efecto_tipo 
+        self.valor_efecto = valor_efecto
+        self.boost = boost
+        self.costo_hp = costo_hp
+        self.conexiones = {} 
+
+class GrafoEstrategia:
+    def __init__(self):
+        self.nodos = {}
+        self.nodo_actual = "A"
+        self.construir_grafo()
+
+    def construir_grafo(self):
+        """
+        Se añaden condiciones de 'Costo' para elegibilidad.
+        """
+        # Nodos simples (Ataques)
+        self.nodos["A"] = NodoEstrategia("A", "Bala (5%)", "dano", 0.05)
+        self.nodos["B"] = NodoEstrategia("B", "Cuchillo (15%)", "dano", 0.15)
+        self.nodos["C"] = NodoEstrategia("C", "Molotov (20%)", "dano", 0.20)
+        
+        # Nodos especiales
+        # D: Recarga Táctica (Cura 5%, requiere haber perdido vida)
+        self.nodos["D"] = NodoEstrategia("D", "Táctica", "cura", 0.05, boost="defensa")
+        
+        # E: Combo Bala (Híbrido)
+        self.nodos["E"] = NodoEstrategia("E", "Combo Bala", "dano_cura", 0.05)
+        
+        # F: Molotov Potenciado (Requiere Boost previo o HP > 10% para ejecutar)
+        self.nodos["F"] = NodoEstrategia("F", "Molotov+", "dano", 0.25, boost="ataque", costo_hp=10)
+
+        # Matriz de Adyacencia
+        self.conectar("A", {"B":3, "C":3, "D":2})
+        self.conectar("B", {"A":3, "D":4, "F":7})
+        self.conectar("C", {"A":3, "D":6, "E":7})
+        self.conectar("D", {"A":2, "B":4, "C":6, "E":8, "F":10})
+        self.conectar("E", {"A":5, "C":7, "D":8, "F":14})
+        self.conectar("F", {"A":5, "B":7, "D":10, "E":14})
+
+    def conectar(self, origen, destinos_dict):
+        for dest, peso in destinos_dict.items():
+            self.nodos[origen].conexiones[dest] = peso
+
+    def nodo_es_elegible(self, codigo_nodo, boss):
+        """
+        Verifica las condiciones para que un nodo sea 'Eligible y Usable'.
+        """
+        nodo = self.nodos[codigo_nodo]
+        
+        # 1. Condición de Vida (Costos)
+        if boss.vida_actual <= nodo.costo_hp:
+            return False
+            
+        # 2. Condición de Utilidad (No curarse si está lleno)
+        if nodo.efecto_tipo == "cura" and boss.vida_actual == boss.vida_max:
+            return False
+            
+        return True
+
+    def aplicar_prim(self, nodo_inicio, boss):
+        """
+        Algoritmo de Prim para evaluar el Recorrido Óptimo (MST).
+        Retorna la lista de aristas que forman la estrategia de menor costo
+        considerando solo nodos elegibles.
+        """
+        visitados = set([nodo_inicio])
+        mst_aristas = []
+        
+        # Inicializamos con las conexiones del nodo actual
+        edges = []
+        for dest, peso in self.nodos[nodo_inicio].conexiones.items():
+            if self.nodo_es_elegible(dest, boss):
+                heapq.heappush(edges, (peso, nodo_inicio, dest))
+        
+        # Bucle principal de Prim
+        while edges:
+            peso, u, v = heapq.heappop(edges)
+            
+            if v not in visitados:
+                visitados.add(v)
+                mst_aristas.append((u, v, peso))
+                
+                # Expandir desde el nuevo nodo v
+                for vecino, peso_vecino in self.nodos[v].conexiones.items():
+                    if vecino not in visitados and self.nodo_es_elegible(vecino, boss):
+                        heapq.heappush(edges, (peso_vecino, v, vecino))
+                        
+        return mst_aristas
+
+    def seleccionar_siguiente_ataque(self, boss):
+        """
+        Usa el resultado de Prim para decidir el movimiento más eficiente.
+        Si el MST sugiere una conexión directa barata, la toma.
+        """
+        # 1. Calculamos el árbol óptimo desde el estado actual
+        mst = self.aplicar_prim(self.nodo_actual, boss)
+        
+        # 2. Buscamos si hay una transición directa en el MST desde el nodo actual
+        opciones_validas = []
+        
+        # Recolectar vecinos directos que sean elegibles
+        vecinos = self.nodos[self.nodo_actual].conexiones
+        for dest, peso in vecinos.items():
+            if self.nodo_es_elegible(dest, boss):
+                # Factor de decisión: Peso base + Prioridad si está en el MST
+                es_optimo = any(u == self.nodo_actual and v == dest for u, v, w in mst)
+                
+                # Invertimos peso para probabilidad (menor peso = mejor)
+                score = 1.0 / (peso + 0.1) 
+                if es_optimo: 
+                    score *= 2.0 # Bonificación si pertenece al recorrido óptimo de Prim
+                
+                opciones_validas.append((dest, score))
+        
+        if not opciones_validas:
+            # Fallback: Ataque básico si nada es elegible
+            self.nodo_actual = "A"
+            return self.nodos["A"]
+
+        # 3. Selección ponderada final
+        destinos = [x[0] for x in opciones_validas]
+        pesos = [x[1] for x in opciones_validas]
+        
+        seleccion = random.choices(destinos, weights=pesos, k=1)[0]
+        self.nodo_actual = seleccion
+        return self.nodos[seleccion]
+

@@ -169,6 +169,28 @@ class ControladorCombate:
                 msg_escudo = defensor.recibir_dano(resultado.dano)
                 mensaje_log += f"\n{resultado.mensaje} Daño: {resultado.dano}"
                 if isinstance(msg_escudo, str): mensaje_log += f"\n{msg_escudo}"
+                # --- LÓGICA DE ESTRÉS ---
+                # Solo aplica si es el Jefe (tiene atributo 'estres')
+                if hasattr(defensor, 'st'):
+                    aumento_st = 15 # Estrés base por impacto
+                
+                    # 1. Modificador por Intensidad del Golpe
+                    if resultado.tipo == "CRITICO":
+                        aumento_st = 25 
+                    # 2. Modificador por Estado Actual (Sinergia de Dolor)
+                    # Si el jefe ya está sufriendo, se estresa más.
+                    estado_actual = defensor.estado_actual
+                
+                    if estado_actual in ["Quemado", "Sangrado"]:
+                        aumento_st += 10 # El dolor físico constante aumenta la ansiedad
+                    
+                    elif estado_actual == "Vulnerable":
+                        aumento_st *= 2 # Si está vulnerable, el impacto emocional es doble
+                    
+                    elif estado_actual == "Enfurecido":
+                        aumento_st = 5 # En estado de furia, es más resistente al estrés externo (adrenalina)
+
+                    defensor.aumentar_estres(aumento_st)
 
                 # --- INTERACCIÓN CON EL GRAFO DE ESTADOS ---
                 # Si el ataque acertó, verificamos si aplica algún efecto especial (Fuego, etc.)
