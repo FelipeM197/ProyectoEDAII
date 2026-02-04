@@ -140,3 +140,5 @@ class Boss(Personaje):
         # Esto garantiza que el Boss tenga todos los atributos base (vida, pila de escudos, etc.)
         # sin tener que duplicar el código de inicialización.
         super().__init__(nombre, vida, ataque, energia, habilidades)
+
+        
