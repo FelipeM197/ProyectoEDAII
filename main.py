@@ -45,9 +45,24 @@ def obtener_texto_habilidades(personaje):
 def main():
     # Iniciamos el motor de Pygame y la ventana.
     pygame.init()
+
+    # Asegurarnos de que el mixer esté iniciado (por si acaso recursos.py no lo hizo)
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
     pantalla = pygame.display.set_mode((config.ANCHO, config.ALTO))
     pygame.display.set_caption(config.TITULO)
     reloj = pygame.time.Clock()
+
+    # --- MÚSICA DE FONDO ---
+    try:
+        # Cargar el archivo de música
+        pygame.mixer.music.load(config.RUTA_MUSICA)
+        pygame.mixer.music.set_volume(0.3) # Volumen al 30% para no aturdir
+        # Reproducir en loop (-1 significa infinito)
+        pygame.mixer.music.play(-1)
+    except Exception as e:
+        print(f"No se pudo cargar la música: {e}")
     
     # Instancio mis módulos personalizados.
     # GestorGrafico se encarga de pintar y ControladorCombate de las reglas.
@@ -105,7 +120,13 @@ def main():
             if evento.type == pygame.KEYDOWN:
                 # 1. Lógica del Menú Principal
                 if estado == "MENU":
-                    if evento.key == pygame.K_RETURN: estado = "JUEGO"
+                    if evento.key == pygame.K_RETURN:
+                        
+                        # --- REPRODUCIR SONIDO START ---
+                        sfx = motor.sonidos.get('sfx_start') # Obtenemos el sonido
+                        if sfx: sfx.play() # Lo reproducimos
+
+                        estado = "JUEGO"
                 
                 # 2. Pantallas de fin de juego
                 elif estado in ["VICTORIA", "DERROTA"]:
