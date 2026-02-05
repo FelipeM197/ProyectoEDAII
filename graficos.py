@@ -3,21 +3,40 @@ import config
 from recursos import AlmacenRecursos 
 
 """
-GESTOR DE GRÁFICOS
-------------------
-Este módulo es el artista del equipo. Su única responsabilidad es recibir datos
-y dibujar píxeles en la pantalla. No calcula daño ni decide quién gana, solo pinta.
+GESTOR DE GRÁFICOS (MOTOR VISUAL)
 
-Separamos la lógica de "dibujar" de la lógica de "cargar imágenes" (que está en recursos.py)
-para que el código sea más ordenado y la memoria se gestione mejor.
-
-INDICE RÁPIDO:
---------------
-Línea 26  -> Configuración inicial y carga de assets
-Línea 50  -> dibujar_interfaz (El ciclo principal de renderizado)
-Línea 118 -> Sistema de HUD (Barras de vida y energía)
-Línea 139 -> Pantallas de Menú, Victoria y Derrota
-Línea 174 -> Animaciones (Proyectiles e Impactos)
+GUÍA RÁPIDA DE MODIFICACIÓN (RENDERIZADO Y UI):
+-----------------------------------------------------------------------------------------
+CLASE / SECCIÓN         | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. ESTILO GENERAL       | __init__              | Configuración inicial.
+   (Fuentes y Colores)  | - self.VERDE_TERMINAL | - Cambiar paleta de colores RGB.
+                        | - pygame.font...      | - Cambiar tipo o tamaño de letra (19, 20).
+-----------------------------------------------------------------------------------------
+2. ESCENA DE BATALLA    | dibujar_interfaz()    | Dibuja el frame principal.
+   (Posiciones)         | - self.pantalla.blit  | - Cambiar coordenadas (X, Y) para mover:
+                        |                       |   P1 (100,230), Boss (850,230), etc.
+                        | - MAX_LINEAS = 5      | - Aumentar/disminuir historial de texto.
+                        | - dibujar_estado()    | - Ajustar posición de iconos (fuego/sangre).
+-----------------------------------------------------------------------------------------
+3. HUD (BARRAS VIDA)    | dibujar_barras_vida() | Controla las cajas de estadísticas.
+                        | - MORADO_ESTRES       | - Color único para la barra del Boss.
+                        |-----------------------|----------------------------------------
+                        | dibujar_hud()         | Dibuja el rectángulo genérico.
+                        | - pygame.draw.rect    | - Modificar grosor de bordes o rellenos.
+-----------------------------------------------------------------------------------------
+4. PANTALLAS MENU/FIN   | dibujar_victoria()    | Pantallas estáticas.
+                        | dibujar_derrota()     | - overlay.set_alpha(200): Opacidad fondo.
+                        | dibujar_menu_pausa()  | - Ajustar posición del menú y cursor.
+-----------------------------------------------------------------------------------------
+5. ANIMACIONES          | animar_proyectil()    | Movimiento lineal de objetos.
+   (Tiempos y Efectos)  | - range(20)           | - Cambiar '20' altera la velocidad
+                        |                       |   del disparo (Más bajo = Más rápido).
+                        |-----------------------|----------------------------------------
+                        | animar_impacto()      | Feedback visual de golpe.
+                        | - es_dano (lógica)    | - Decide si el personaje pone cara de dolor.
+                        | - pygame.time.delay   | - Duración del efecto en pantalla.
+-----------------------------------------------------------------------------------------
 """
 
 class GestorGrafico:
@@ -162,12 +181,37 @@ class GestorGrafico:
 
     def dibujar_barras_vida(self, p1, p2, boss):
         """Fachada para llamar al dibujado individual de cada barra."""
+        
+        # 1. Dibujamos a los jugadores usando el método estándar (Caja con borde verde)
         self.dibujar_hud(100, 30, 250, 60, p1, self.VERDE_TERMINAL)
         self.dibujar_hud(100, 100, 250, 60, p2, self.VERDE_TERMINAL)
         
+        # 2. Dibujamos al JEFE manualmente para cambiar el texto de "Energía" por "Estrés".
+        # Usamos las mismas coordenadas y estilo de caja para mantener la coherencia visual.
+        x = config.ANCHO - 350
+        y = 30
+        ancho = 250
+        alto = 60
+        
         ROJO_TERMINAL = (255, 50, 50)
-        self.dibujar_hud(config.ANCHO - 350, 30, 250, 60, boss, ROJO_TERMINAL, color_borde=ROJO_TERMINAL)
-
+        MORADO_ESTRES = (150, 0, 200) # Usamos morado para diferenciarlo de la energía azul.
+        
+        # A. Fondo Negro y Borde Rojo
+        bg = pygame.Surface((ancho, alto))
+        bg.fill(self.NEGRO)
+        pygame.draw.rect(bg, ROJO_TERMINAL, (0, 0, ancho, alto), 2)
+        self.pantalla.blit(bg, (x, y))
+        
+        # B. Textos (Usamos Arial 18 Bold igual que en dibujar_hud para que se vea idéntico)
+        fuente_info = pygame.font.SysFont("Arial", 18, bold=True)
+        
+        # Línea Superior: Nombre y Vida (En Rojo)
+        txt_vida = fuente_info.render(f"{boss.nombre}: {boss.vida_actual}/{boss.vida_max} HP", True, ROJO_TERMINAL)
+        self.pantalla.blit(txt_vida, (x + 10, y + 8))
+        
+        # Línea Inferior: Estrés (En Morado) -> AQUÍ ESTÁ EL CAMBIO CLAVE
+        txt_estres = fuente_info.render(f"Estrés: {boss.st}/{boss.st_max} ST", True, MORADO_ESTRES)
+        self.pantalla.blit(txt_estres, (x + 10, y + 32))
     def dibujar_hud(self, x, y, ancho, alto, personaje, color_texto, color_borde=None):
         """
         Dibuja el rectángulo de estadísticas (Heads Up Display).

@@ -3,16 +3,35 @@ import pygame
 """
 ARCHIVO DE CONFIGURACIÓN (CONSTANTES)
 
-INDICE RÁPIDO PARA MODIFICACIONES:
--------------------------------------------------
-Línea 20  -> 1. Configuración de Pantalla y FPS
-Línea 30  -> 2. Paleta de Colores
-Línea 40  -> 3. Opciones del Menú de Pausa
-Línea 50  -> 4. Estadísticas y Habilidades (Jugadores)
-Línea 145 -> 5. Matemáticas y Probabilidades (Balanceo)
-Línea 160 -> 6. Configuración del Nivel y Jefe
-Línea 175 -> 7. Sistema de Diálogos (Textos)
--------------------------------------------------
+GUÍA RÁPIDA DE MODIFICACIÓN (VARIABLES CLAVE):
+-----------------------------------------------------------------------------------------
+SECCIÓN                 | VARIABLE(S) BUSCAR    | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. PANTALLA             | ANCHO, ALTO           | Cambiar resolución de ventana (px).
+                        | FPS                   | Ajustar velocidad del juego (30/60).
+-----------------------------------------------------------------------------------------
+2. COLORES              | BLANCO, NEGRO, ETC.   | Cambiar valores RGB (0-255).
+-----------------------------------------------------------------------------------------
+3. MENÚ PAUSA           | OPCIONES_PAUSA        | Editar textos de botones ["Texto",..].
+-----------------------------------------------------------------------------------------
+4. ESTADÍSTICAS JUGADOR | P1_VIDA_MAX, P1_ATAQUE| Balancear vida/daño base.
+                        | P2_VIDA_MAX, P2_ATAQUE| (Igual para el Jugador 2).
+-----------------------------------------------------------------------------------------
+5. HABILIDADES          | HABILIDADES_P1 (Lista)| En cada {}:
+                        | HABILIDADES_P2 (Lista)| - 'dano': Potencia (negativo cura).
+                        |                       | - 'costo': Energía requerida.
+                        |                       | - 'desc': Texto descriptivo.
+-----------------------------------------------------------------------------------------
+6. MATEMÁTICAS (AZAR)   | PROB_ACIERTO          | Probabilidad base (0.0 a 1.0).
+                        | PROB_CRITICO          | Probabilidad de golpe x1.5.
+                        | MULT_CRITICO          | Multiplicador de daño crítico.
+-----------------------------------------------------------------------------------------
+7. NIVEL Y BOSS         | NIVELES (Lista)       | En 'boss_vida' y 'boss_ataque':
+                        |                       | Ajustar dificultad del jefe final.
+-----------------------------------------------------------------------------------------
+8. TEXTOS (FLAVOR)      | FRASES_EXITO,         | Añadir/Editar frases aleatorias
+                        | FRASES_FALLO, BOSS    | dentro de las comillas " ".
+-----------------------------------------------------------------------------------------
 """
 
 # ==========================================
@@ -41,7 +60,7 @@ AZUL = (0, 0, 255)
 # 3. MENÚ DE PAUSA
 # ==========================================
 # Estas son las opciones que muestro cuando pauso el juego.
-# Nota: Si agrego algo aquí, necesito programar la acción en el main.
+# Nota: Si se agrega algo aquí, necesito programar la acción en el main.
 OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # ==========================================
@@ -50,13 +69,13 @@ OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # --- JUGADOR 1 (DPS / Atacante) ---
 P1_NOMBRE = "Jugador 1"
-P1_VIDA_MAX = 1     # Vida total actual del personaje.
+P1_VIDA_MAX = 100     # Vida total actual del personaje.
 P1_ATAQUE = 20       # Daño base que hago con ataques normales.
 P1_ENERGIA_MAX = 100  
 
 # --- JUGADOR 2 (Tanque / Soporte) ---
 P2_NOMBRE = "Jugador 2"
-P2_VIDA_MAX = 50     # Vida total actual del segundo personaje.
+P2_VIDA_MAX = 150     # Vida total actual del segundo personaje.
 P2_ATAQUE = 15       # Daño base un poco más bajo que el P1.
 P2_ENERGIA_MAX = 150 # Reservo esto por si implemento maná luego.
 
@@ -112,7 +131,7 @@ HABILIDADES_P1 = [
         "dano": 0,
         "costo": 50,
         "tipo": "BUFF",
-        "desc": "Motivado: +Crítico y -Costos.",
+        "desc": "Motivado: -Costos.",
         "icono": "icono_grito.png",
         "efecto_code": "motivacion"
     },
@@ -177,9 +196,8 @@ HABILIDADES_P2 = [
 # ==========================================
 # 5. MATEMÁTICAS DEL ÁRBOL DE DECISIÓN
 # ==========================================
-# Aquí configuro las probabilidades para controlar la suerte en los combates.
 
-PROB_ACIERTO = 0.85   # Probabilidad base de golpear.
+PROB_ACIERTO = 0.80   # Probabilidad base de golpear.
 PROB_CRITICO = 0.20   # Probabilidad de hacer un golpe crítico.
 PROB_TROPIEZO = 0.10  # Probabilidad de fallar y recibir daño propio.
 
@@ -187,11 +205,11 @@ PROB_TROPIEZO = 0.10  # Probabilidad de fallar y recibir daño propio.
 MULT_CRITICO = 1.5    # Si es crítico, multiplico el daño por 1.5.
 DANO_TROPIEZO = 10    # Daño fijo que me hago si me tropiezo.
 DURACION_QUEMADO = 3  # Turnos que dura el efecto de fuego.
-
+DURACION_MOTIVACION = 3
 # ==========================================
 # 6. CONFIGURACIÓN DEL NIVEL Y BOSS
 # ==========================================
-# Lista de niveles. Aquí defino quién es el jefe y sus estadísticas.
+# Lista de niveles. Aquí defino quién es el jefe y sus estadísticas. Solo pudimos hacer 1 :c
 NIVELES = [
     {
         "fondo": "escenario.png",       # Archivo de imagen para el fondo.

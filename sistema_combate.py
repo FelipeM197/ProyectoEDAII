@@ -3,20 +3,38 @@ from estructuras import ArbolAtaque
 import config 
 
 """
-SISTEMA DE COMBATE (CONTROLADOR)
---------------------------------
-Este módulo actúa como el árbitro central del juego.
-Su responsabilidad es coordinar la lógica pura (matemáticas, estados) con 
-la representación visual (animaciones). Es el puente entre 'estructuras.py' y 'graficos.py'.
+SISTEMA DE COMBATE (CONTROLADOR LÓGICO)
 
-INDICE RÁPIDO:
---------------
-Línea 23  -> Inicialización
-Línea 29  -> Procesar Efectos Pasivos (DoT: Damage over Time)
-Línea 86  -> Ejecutar Habilidad (Lógica principal de acción)
-Línea 95  -> Selección de proyectiles
-Línea 133 -> Lógica de Ataque (Uso del Árbol de Decisión)
-Línea 150 -> Actualización de Estados (Uso del Grafo)
+GUÍA RÁPIDA DE MODIFICACIÓN (MECÁNICAS Y TURNOS):
+-----------------------------------------------------------------------------------------
+CLASE / LÓGICA          | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. DAÑO POR TIEMPO      | procesar_efectos...() | Controla quemaduras y sangrados.
+   (Inicio de Turno)    | - if estado=="Quemado"| - Cambiar 'dano = 15' para ajustar
+                        |                       |   lo que quita el fuego por turno.
+                        | - turnos_quemado -= 1 | - Lógica de duración del efecto.
+-----------------------------------------------------------------------------------------
+2. ANIMACIONES ATAQUE   | ejecutar_habilidad()  | Vincula el nombre con el dibujo.
+   (Proyectiles)        | - if "Molotov" in...  | - SI CAMBIAS NOMBRES EN CONFIG.PY,
+                        |                       |   debes actualizar estos 'if' para
+                        |                       |   que salga el proyectil correcto.
+-----------------------------------------------------------------------------------------
+3. LÓGICA DE APOYO      | ejecutar_habilidad()  | Bloques IF por 'tipo':
+   (Curas y Escudos)    | - TIPO "CURACION"     | - Define a quién cura (IA simple).
+                        | - TIPO "DEFENSA"      | - 'agregar_capa_escudo(1)':
+                        |                       |   Cambiar '1' por más capas.
+-----------------------------------------------------------------------------------------
+4. SISTEMA DE ESTRÉS    | ejecutar_habilidad()  | **IMPORTANTE PARA EL BOSS**
+   (Mecánica Única)     | - aumento_st = 15     | - Estrés base por golpe.
+                        | - if "Quemado"...     | - Sinergias: Aquí defines que el
+                        |                       |   dolor físico aumenta el estrés (+10).
+                        | - if "Vulnerable"...  | - Multiplicadores (x2) de daño mental.
+-----------------------------------------------------------------------------------------
+5. APLICAR EFECTOS      | ejecutar_habilidad()  | Conexión con el Grafo.
+   (Final del ataque)   | - grafo.transicion()  | Pregunta al grafo si el estado cambia.
+                        | - turnos_quemado = X  | Si el estado cambia a fuego, aquí
+                        |                       | se reinicia el contador de turnos.
+-----------------------------------------------------------------------------------------
 """
 
 class ControladorCombate:
@@ -81,11 +99,14 @@ class ControladorCombate:
             self.motor.dibujar_interfaz(p1, p2, jefe, mensaje) 
             pygame.display.flip()
             pygame.time.delay(2000)
-
+        if personaje_activo.turnos_motivado > 0:
+            personaje_activo.turnos_motivado -= 1
+            if personaje_activo.turnos_motivado == 0:
+                mensaje += f"\n{personaje_activo.nombre} ya no está motivado."
         # Pequeña pausa dramática si pasó algo, para que el jugador entienda qué ocurrió.
         if efecto_aplicado:
             pygame.time.delay(1000)
-            
+        
         return pierde_turno, mensaje
 
     def ejecutar_habilidad(self, atacante, defensor, habilidad, p1, p2, jefe):
@@ -138,7 +159,9 @@ class ControladorCombate:
                 self.motor.animar_impacto(p1, p2, jefe, mensaje_log, atacante, "NORMAL")
 
         elif habilidad.tipo == "BUFF":
-            mensaje_log += f"\n¡{atacante.nombre} se siente motivado!"
+            atacante.turnos_motivado = config.DURACION_MOTIVACION 
+            
+            mensaje_log += f"\n¡{atacante.nombre} se motiva! (Costos reducidos)"
             self.motor.animar_impacto(p1, p2, jefe, mensaje_log, atacante, "MOTIVACION")
             
         elif habilidad.tipo == "DEFENSA":

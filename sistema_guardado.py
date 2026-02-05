@@ -2,10 +2,35 @@ import json
 import os
 
 """
-SISTEMA DE GUARDADO
--------------------
-Guarda y carga el estado del juego usando un archivo JSON.
-Variables y claves en español.
+SISTEMA DE GUARDADO (PERSISTENCIA DE DATOS JSON)
+
+GUÍA RÁPIDA DE MODIFICACIÓN (SAVEDATA):
+-----------------------------------------------------------------------------------------
+SECCIÓN / LÓGICA        | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. ARCHIVO              | NOMBRE_ARCHIVO        | Define el nombre del fichero en disco.
+                        |                       | (Por defecto: "partida_guardada.json").
+-----------------------------------------------------------------------------------------
+2. ESTRUCTURA GENERAL   | guardar_partida()     | Crea el esqueleto del JSON.
+   (El Diccionario)     | - "global": {...}     | - Si agregas variables globales (ej.
+                        |                       |   "Nivel 2"), agrégalas aquí.
+-----------------------------------------------------------------------------------------
+3. SELECCIÓN DE DATOS   | _extraer_datos()      | **CRÍTICO: QUÉ GUARDAR**
+   (De Objeto a JSON)   | - datos = {...}       | - Si añades un atributo nuevo al
+                        |                       |   Personaje (ej. 'mana'), debes
+                        |                       |   escribirlo en este diccionario.
+                        | - if hasattr(p, 'st') | - Lógica para guardar datos únicos
+                        |                       |   del Boss (Estrés) o Buffs.
+-----------------------------------------------------------------------------------------
+4. CARGA DE DATOS       | aplicar_datos()       | **CRÍTICO: QUÉ RECUPERAR**
+   (De JSON a Objeto)   | - .get("clave", 0)    | - Es el espejo de _extraer_datos.
+                        |                       |   Usa .get() para poner un valor
+                        |                       |   por defecto si el save es antiguo.
+-----------------------------------------------------------------------------------------
+5. LIMPIEZA             | borrar_partida()      | Se llama en Game Over / Victoria.
+                        | - os.remove()         | Elimina el archivo físico para
+                        |                       | impedir reiniciar trampas.
+-----------------------------------------------------------------------------------------
 """
 
 NOMBRE_ARCHIVO = "partida_guardada.json"
@@ -56,13 +81,26 @@ class SistemaGuardado:
         """
         Extrae solo los datos necesarios de un objeto Personaje.
         """
-        return {
+        # Creo el diccionario base con las estadísticas que comparten tanto los jugadores como el jefe.
+        datos = {
             "vida": personaje.vida_actual,
             "energia": personaje.energia_actual,
-            "estado": personaje.estado_actual,      # "Normal", "Quemado", etc.
-            "turnos_estado": personaje.turnos_quemado, # Cuánto le falta al efecto
-            "escudo": personaje.pila_escudo         # Lista de escudos
+            "estado": personaje.estado_actual,      
+            "turnos_estado": personaje.turnos_quemado, 
+            "escudo": personaje.pila_escudo         
         }
+
+        # Aquí verifico si el personaje tiene la mecánica de Estrés (es decir, si es el Jefe).
+        # Si es así, lo agrego al archivo para que recuerde qué tan enojado estaba.
+        if hasattr(personaje, 'st'):
+            datos["st"] = personaje.st
+
+        # para guardar los contadores de los potenciadores (Buffs) 
+        if hasattr(personaje, 'turnos_buff_ataque'):
+            datos["buff_ataque"] = personaje.turnos_buff_ataque
+            datos["buff_defensa"] = personaje.turnos_buff_defensa
+            
+        return datos
 
     def aplicar_datos(self, personaje, datos_dict):
         """
@@ -70,12 +108,23 @@ class SistemaGuardado:
         """
         if not datos_dict: return
 
-        # Usamos .get() por seguridad, si no existe usa el valor por defecto
+        # Restauro los valores estándar usando .get() por seguridad (si no existe la clave, usa un valor por defecto).
         personaje.vida_actual = datos_dict.get("vida", personaje.vida_max)
         personaje.energia_actual = datos_dict.get("energia", 0)
         personaje.estado_actual = datos_dict.get("estado", "Normal")
         personaje.turnos_quemado = datos_dict.get("turnos_estado", 0)
         personaje.pila_escudo = datos_dict.get("escudo", [])
+
+        # Si detecto que este personaje es el Jefe (tiene el atributo st),
+        # le restauro su nivel de estrés tal cual estaba.
+        if hasattr(personaje, 'st'):
+            personaje.st = datos_dict.get("st", 0)
+
+        # De igual forma, si es capaz de tener buffs, recupero los contadores guardados.
+        if hasattr(personaje, 'turnos_buff_ataque'):
+            personaje.turnos_buff_ataque = datos_dict.get("buff_ataque", 0)
+            personaje.turnos_buff_defensa = datos_dict.get("buff_defensa", 0)
+    
     def borrar_partida(self):
         """
         Elimina el archivo de guardado si existe (para Game Over o Victoria).

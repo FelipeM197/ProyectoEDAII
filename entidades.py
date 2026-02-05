@@ -1,17 +1,32 @@
 """
-ENTIDADES DEL JUEGO
--------------------
-Este módulo contiene la lógica orientada a objetos para los actores del juego.
-Aquí definimos cómo se comportan los datos que configuramos en config.py.
+ENTIDADES DEL JUEGO (LÓGICA DE CLASES)
 
-INDICE RÁPIDO PARA MODIFICACIONES:
--------------------------------------------------
-Línea 23  -> Clase Habilidad (Manejo de diccionarios de datos)
-Línea 42  -> Clase Personaje (Estado y atributos)
-Línea 75  -> Lógica de Escudos (Estructura de datos PILA/Stack)
-Línea 95  -> Sistema de Salud y Energía
-Línea 126 -> Clase Boss (Herencia)
--------------------------------------------------
+GUÍA RÁPIDA DE MODIFICACIÓN (MÉTODOS Y LÓGICA):
+-----------------------------------------------------------------------------------------
+CLASE / SECCIÓN         | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. CLASE HABILIDAD      | __init__              | Mapea datos de config.py a objetos.
+                        |                       | Cambiar '.get("tipo", "NORMAL")'
+                        |                       | para alterar valores por defecto.
+-----------------------------------------------------------------------------------------
+2. LOGICA DE DAÑO       | recibir_dano()        | En 'if hasattr... * 0.5':
+   (Personaje)          |                       | Cambiar 0.5 para ajustar la reducción
+                        |                       | de daño del buff defensivo.
+                        |-----------------------|----------------------------------------
+                        | pila_escudo (Logic)   | Modificar lógica .pop() si quieres
+                        |                       | que el escudo no se rompa de 1 golpe.
+-----------------------------------------------------------------------------------------
+3. ENERGÍA              | recuperar_energia...()| Busca variable 'recuperacion = 10'.
+   (Personaje)          |                       | Cambia el 10 para dar más/menos
+                        |                       | energía automática al fin del turno.
+                        |-----------------------|----------------------------------------
+                        | gastar_energia()      | En 'cantidad // 2':
+                        |                       | Cambia el divisor para ajustar
+                        |                       | el beneficio del estado 'Motivado'.
+-----------------------------------------------------------------------------------------
+4. JEFE (BOSS)          | __init__ (st_max)     | Cambiar 'self.st_max = 100'
+                        |                       | para limitar la barra de estrés (IA).
+-----------------------------------------------------------------------------------------
 """
 
 class Habilidad:
@@ -55,7 +70,7 @@ class Personaje:
 
         # Contador de estado alterado. Si es mayor a 0, el personaje sufre daño por turno.
         self.turnos_quemado = 0
-        
+        self.turnos_motivado = 0
         # Máquina de estados simple.
         # Controla si el personaje está en reposo, atacando o recibiendo daño
         # para coordinar las animaciones en el módulo de gráficos.
@@ -74,22 +89,32 @@ class Personaje:
         Calcula el daño final recibido por la entidad.
         Aquí es donde la estructura de PILA cobra sentido para la mecánica de juego.
         """
+        # Inicializo el daño real con el valor original que llega del ataque.
+        dano_final = cantidad
+        
+        # Antes de nada, compruebo si el personaje tiene activa alguna mejora defensiva (como la 'Táctica' del Jefe).
+        # Si es así, corto el daño a la mitad para que se sienta el impacto de la estrategia defensiva y consumo un turno del efecto.
+        if hasattr(self, 'turnos_buff_defensa') and self.turnos_buff_defensa > 0:
+            dano_final = int(cantidad * 0.5)
+            self.turnos_buff_defensa -= 1
+
         # Verificación de la PILA de escudos.
         if len(self.pila_escudo) > 0:
             # Operación POP: Eliminamos el elemento superior de la pila.
             # Mecánicamente, esto significa que una capa de escudo absorbe
-            # TODO el daño del ataque, sin importar cuánto sea.
+            # TODO el daño del ataque, sin importar cuánto sea (incluso si venía reducido).
             self.pila_escudo.pop() 
             return f"¡{self.nombre} bloqueó el daño con su escudo!"
         
-        # Si la pila está vacía, el daño afecta directamente al atributo de vida.
-        self.vida_actual -= cantidad
+        # Si la pila está vacía, el daño calculado afecta directamente al atributo de vida.
+        self.vida_actual -= dano_final
         
         # Clamp (restricción) para evitar valores negativos en la interfaz de usuario.
         if self.vida_actual < 0:
             self.vida_actual = 0
         
-        return f"{self.nombre} recibió {cantidad} de daño."
+        # Devuelvo el mensaje confirmando cuánto daño entró realmente al final.
+        return f"{self.nombre} recibió {dano_final} de daño."
 
     def agregar_capa_escudo(self, cantidad=1):
         """
@@ -108,12 +133,14 @@ class Personaje:
             self.vida_actual = self.vida_max
 
     def gastar_energia(self, cantidad):
-        """
-        Gestión de recursos. Valida si la operación es posible antes de restar.
-        Retorna un booleano para que la interfaz sepa si el ataque procedió o falló.
-        """
-        if self.energia_actual >= cantidad:
-            self.energia_actual -= cantidad
+        costo_real = cantidad
+        
+        # Si está motivado, el costo baja a la mitad (división entera)
+        if self.turnos_motivado > 0:
+            costo_real = cantidad // 2
+            
+        if self.energia_actual >= costo_real:
+            self.energia_actual -= costo_real
             return True
         return False
     
@@ -140,6 +167,8 @@ class Boss(Personaje):
         # Variable requerida por el Grafo de Comportamiento
         self.st = 0      # Nivel Inicial: 0
         self.st_max = 100 
+        self.turnos_buff_ataque = 0  # Para cuando usa Molotov+
+        self.turnos_buff_defensa = 0 # Para cuando usa Táctica
     
     def aumentar_estres(self, cantidad):
         self.st += cantidad

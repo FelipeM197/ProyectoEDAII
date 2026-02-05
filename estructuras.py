@@ -3,23 +3,45 @@ import config
 import heapq
 
 """
-LÓGICA MATEMÁTICA Y DE DECISIONES
----------------------------------
-Este módulo actúa como el cerebro del juego. Aquí no dibujamos nada en pantalla,
-sino que procesamos los números y las reglas que definen qué sucede.
+LÓGICA MATEMÁTICA Y DE DECISIONES (CEREBRO DEL JUEGO)
 
-Implementamos dos modelos lógicos principales:
-1. Un árbol de decisión probabilístico para calcular el resultado de los ataques.
-2. Un grafo dirigido (máquina de estados) para gestionar los efectos de estado.
-
-INDICE RÁPIDO:
---------------
-Línea 25 -> Clase ResultadoAtaque (Paquete de datos)
-Línea 40 -> Nodos del Árbol de Decisión
-Línea 65 -> Clase ArbolAtaque (Lógica de combate)
-Línea 145 -> Clase GrafoEfectos (Máquina de estados)
-Línea 258 -> Clase GrafoEstados (Máquina de estados - jefe)
-Línea 343 -> Clase GrafoEstrategia (Estrategias del jefe) 
+GUÍA RÁPIDA DE MODIFICACIÓN (REGLAS Y COMPORTAMIENTO):
+-----------------------------------------------------------------------------------------
+CLASE / LÓGICA          | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. ÁRBOL DE COMBATE     | ArbolAtaque ->        | Define la jerarquía de suerte.
+   (Suerte/RNG)         | construir_arbol()     | - Cambiar orden de 'probabilidad_limite'
+                        |                       |   para priorizar Críticos o Fallos.
+                        |                       | - Editar 'resultado_base' para cambiar
+                        |                       |   mensajes o multiplicadores (x1.5).
+-----------------------------------------------------------------------------------------
+2. REACCIONES ELEM.     | GrafoEfectos ->       | Define qué estado vence a cuál.
+   (Máquina Estados)    | construir_grafo_juego | - agregar_arista("Origen", "Evento", "Destino")
+                        |                       |   Ej: Que 'Agua' quite 'Fuego'.
+-----------------------------------------------------------------------------------------
+3. PERSONALIDAD BOSS    | GrafoEstados ->       | Define los bonus pasivos del jefe.
+   (Estados Emocionales)| self.bonus_estados    | - Editar diccionarios:
+                        |                       |   "FURIA": {"ataque": 1.5...}
+                        |-----------------------|----------------------------------------
+                        | actualizar_estado()   | Define CUÁNDO cambia de humor.
+                        |                       | - Modificar 'porc_vida < 30' o
+                        |                       |   'boss.st >= 80' (Umbrales).
+-----------------------------------------------------------------------------------------
+4. ESTRATEGIA BOSS      | GrafoEstrategia ->    | Define el arsenal de ataques.
+   (Grafo Ponderado)    | construir_grafo()     | - self.nodos["A"]: Crear/Editar ataques
+                        |                       |   (Daño %, Costo HP, Efectos).
+                        |                       | - conectar("A", {"B":3...}):
+                        |                       |   Define la probabilidad de combos.
+                        |                       |   (Peso BAJO = Alta prob. de combo).
+                        |-----------------------|----------------------------------------
+                        | seleccionar_...()     | Algoritmo de decisión (Prim).
+                        |                       | Modificar 'score' para hacer la IA
+                        |                       | más o menos inteligente.
+-----------------------------------------------------------------------------------------
+5. DEBUG / CONSOLA      | imprimir_debug_ia()   | Función global al final.
+                        |                       | Comenta los 'print' si quieres
+                        |                       | limpiar la consola de texto.
+-----------------------------------------------------------------------------------------
 """
 
 # ==========================================
@@ -320,7 +342,11 @@ class GrafoEstados:
         return nuevo_estado
 
     def actualizar_estado(self, boss):
-        # 1. Traducir números a eventos
+        """
+        Calcula el nuevo estado emocional del jefe basándose en sus signos vitales.
+        """
+        # Analizo cuánta vida y estrés tiene el jefe para etiquetar el 
+        # momento actual con un 'evento'.
         evento = "neutro"
         porc_vida = (boss.vida_actual / boss.vida_max) * 100
         
@@ -330,13 +356,21 @@ class GrafoEstados:
         elif boss.st < 20 and porc_vida > 50: evento = "calmado"
         elif porc_vida > 60: evento = "recuperado"
         
-        # 2. Calcular transición
+        # 2. Calcular la transición en el grafo
+        # Le pregunto al grafo: "Si estoy en X estado y pasa el evento Y, a dónde voy?"
         nuevo = self.transicion(self.estado_actual, evento)
         
-        if nuevo != self.estado_actual:
-            print(f"[IA BOSS] Cambio: {self.estado_actual} -> {nuevo} (Evento: {evento})")
-            self.estado_actual = nuevo
-
+        # Guardo una copia del estado viejo en una variable local 
+        # ANTES de actualizar el real.
+        # Si no hago esto, pierdo el dato y la función de debug fallará.
+        estado_anterior = self.estado_actual 
+        
+        # Ahora sí, actualizo el estado oficial del jefe.
+        self.estado_actual = nuevo
+        
+        # Le paso todos los datos a la impresora 
+        # (incluyendo la variable estado_anterior que acabamos de crear).
+        imprimir_debug_ia("ESTADO", (boss, evento, estado_anterior, nuevo))
     def obtener_bonificadores(self):
         return self.bonus_estados.get(self.estado_actual, {"ataque": 1.0, "defensa": 1.0})
 
@@ -345,13 +379,14 @@ class GrafoEstados:
 # GRAFO DE ESTRATEGIA (PONDERADO)
 # ==========================================
 class NodoEstrategia:
-    def __init__(self, codigo, nombre, efecto_tipo, valor_efecto, boost=None, costo_hp=0):
+    def __init__(self, codigo, nombre, efecto_tipo, valor_efecto, boost=None, costo_hp=0, efecto_estado=None):
         self.codigo = codigo
         self.nombre = nombre
         self.efecto_tipo = efecto_tipo 
         self.valor_efecto = valor_efecto
         self.boost = boost
         self.costo_hp = costo_hp
+        self.efecto_estado = efecto_estado
         self.conexiones = {} 
 
 class GrafoEstrategia:
@@ -362,24 +397,29 @@ class GrafoEstrategia:
 
     def construir_grafo(self):
         """
-        Se añaden condiciones de 'Costo' para elegibilidad.
+        Aquí defino el mapa mental del jefe, estableciendo qué ataques conoce y qué tan costoso es pasar de uno a otro.
         """
-        # Nodos simples (Ataques)
+        #Empieza con el ataque mas basico        
         self.nodos["A"] = NodoEstrategia("A", "Bala (5%)", "dano", 0.05)
-        self.nodos["B"] = NodoEstrategia("B", "Cuchillo (15%)", "dano", 0.15)
-        self.nodos["C"] = NodoEstrategia("C", "Molotov (20%)", "dano", 0.20)
         
-        # Nodos especiales
-        # D: Recarga Táctica (Cura 5%, requiere haber perdido vida)
+        self.nodos["B"] = NodoEstrategia("B", "Cuchillo (15%)", "dano", 0.15, efecto_estado="cuchillo")
+        
+        self.nodos["C"] = NodoEstrategia("C", "Molotov (20%)", "dano", 0.20, efecto_estado="fuego")
+        
+        
+        # Esta es la maniobra defensiva donde el jefe se toma un respiro para curarse y subir su defensa preparándose para resistir.
         self.nodos["D"] = NodoEstrategia("D", "Táctica", "cura", 0.05, boost="defensa")
         
-        # E: Combo Bala (Híbrido)
+        # Un ataque híbrido un poco raro que mezcla daño y curación, lo dejo simple sin efectos adicionales.
         self.nodos["E"] = NodoEstrategia("E", "Combo Bala", "dano_cura", 0.05)
         
-        # F: Molotov Potenciado (Requiere Boost previo o HP > 10% para ejecutar)
-        self.nodos["F"] = NodoEstrategia("F", "Molotov+", "dano", 0.25, boost="ataque", costo_hp=10)
+        # La versión definitiva del molotov que pega durísimo y quema, pero es tan intensa que el jefe debe sacrificar su propia salud para lanzarla.
+        self.nodos["F"] = NodoEstrategia("F", "Molotov+", "dano", 0.25, boost="ataque", costo_hp=10, efecto_estado="fuego")
 
-        # Matriz de Adyacencia
+        # --- CONEXIONES (PESOS) ---
+        
+        # Construccion de las neuronas del jefe definiendo el 'costo' de transición entre ideas.
+        # Un peso bajo significa que es muy probable y natural que el jefe encadene esos dos ataques seguidos.
         self.conectar("A", {"B":3, "C":3, "D":2})
         self.conectar("B", {"A":3, "D":4, "F":7})
         self.conectar("C", {"A":3, "D":6, "E":7})
@@ -438,40 +478,88 @@ class GrafoEstrategia:
         return mst_aristas
 
     def seleccionar_siguiente_ataque(self, boss):
-        """
-        Usa el resultado de Prim para decidir el movimiento más eficiente.
-        Si el MST sugiere una conexión directa barata, la toma.
-        """
-        # 1. Calculamos el árbol óptimo desde el estado actual
+        nodo_origen = self.nodo_actual
         mst = self.aplicar_prim(self.nodo_actual, boss)
         
-        # 2. Buscamos si hay una transición directa en el MST desde el nodo actual
         opciones_validas = []
+        debug_opciones = [] # Lista temporal solo para el log
         
-        # Recolectar vecinos directos que sean elegibles
         vecinos = self.nodos[self.nodo_actual].conexiones
         for dest, peso in vecinos.items():
             if self.nodo_es_elegible(dest, boss):
-                # Factor de decisión: Peso base + Prioridad si está en el MST
                 es_optimo = any(u == self.nodo_actual and v == dest for u, v, w in mst)
-                
-                # Invertimos peso para probabilidad (menor peso = mejor)
-                score = 1.0 / (peso + 0.1) 
-                if es_optimo: 
-                    score *= 2.0 # Bonificación si pertenece al recorrido óptimo de Prim
+                score = 1.0 / (peso + 0.1)
+                if es_optimo: score *= 2.0
                 
                 opciones_validas.append((dest, score))
+                
+                # Guardamos datos para la impresora
+                debug_opciones.append({
+                    "nodo": dest, 
+                    "peso": peso, 
+                    "score": score, 
+                    "es_optimo": es_optimo
+                })
         
         if not opciones_validas:
-            # Fallback: Ataque básico si nada es elegible
             self.nodo_actual = "A"
             return self.nodos["A"]
 
-        # 3. Selección ponderada final
+        # Selección
         destinos = [x[0] for x in opciones_validas]
         pesos = [x[1] for x in opciones_validas]
-        
         seleccion = random.choices(destinos, weights=pesos, k=1)[0]
+        
+        imprimir_debug_ia("ESTRATEGIA", (
+            nodo_origen, 
+            self.nodos[nodo_origen].nombre, 
+            mst, 
+            debug_opciones, 
+            seleccion
+        ))
+        
         self.nodo_actual = seleccion
         return self.nodos[seleccion]
 
+def imprimir_debug_ia(tipo, datos):
+    """
+    Función universal para imprimir logs de la IA sin ensuciar las clases.
+    Uso: imprimir_debug_ia("ESTADO", {datos...}) o imprimir_debug_ia("ESTRATEGIA", {datos...})
+    """
+    if tipo == "ESTADO":
+        # Desempaquetamos los datos
+        boss, evento, anterior, actual = datos
+        porc = (boss.vida_actual / boss.vida_max) * 100
+        
+        print("\n" + "="*40)
+        print(" INICIANDO IA DEL JEFE (DONALD T.)")
+        print("="*40)
+        print(f"[IA] Signos Vitales: HP {boss.vida_actual}/{boss.vida_max} ({porc:.1f}%) | Estrés {boss.st}/{boss.st_max}")
+        print(f"[IA] Evento Interpretado: '{evento}'")
+        
+        if anterior != actual:
+            print(f"[IA] ¡CAMBIO DE HUMOR!: {anterior} -> {actual}")
+        else:
+            print(f"[IA] Mantiene humor: {actual}")
+
+    elif tipo == "ESTRATEGIA":
+        # Desempaquetamos
+        origen, nombre_origen, mst, opciones, decision = datos
+        
+        print("-" * 40)
+        print(f"[ESTRATEGIA] Nodo Mental Actual: '{origen}' ({nombre_origen})")
+        print("[ESTRATEGIA] Ejecutando Algoritmo de Prim (MST)...")
+        
+        if mst:
+            for u, v, w in mst:
+                print(f"   └── Conexión Óptima sugerida: {u} -> {v} (Peso {w})")
+        else:
+            print("   └── (Sin expansión: usando solo adyacentes)")
+
+        print("[ESTRATEGIA] Evaluando probabilidades:")
+        for op in opciones:
+            tag = " [BONUS PRIM x2]" if op['es_optimo'] else ""
+            print(f"   - Opción '{op['nodo']}': Peso {op['peso']} -> Score {op['score']:.3f}{tag}")
+            
+        print(f"[ESTRATEGIA] Decisión Final: '{decision}'")
+        print("-" * 40)

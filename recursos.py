@@ -3,17 +3,34 @@ import config
 import os
 
 """
-GESTOR DE RECURSOS Y ASSETS
----------------------------
-Este módulo funciona como el bibliotecario del juego. Su trabajo es ir al disco duro,
-buscar las imágenes, cargarlas en la memoria RAM y tenerlas listas para cuando
-el módulo de gráficos las pida.
+GESTOR DE RECURSOS (IMÁGENES Y AUDIO)
 
-INDICE RÁPIDO:
---------------
-Línea 20 -> Clase AlmacenRecursos (Inicialización)
-Línea 30 -> Carga masiva de imágenes (Lista de archivos)
-Línea 65 -> Método seguro de carga (Manejo de errores/Placeholders)
+GUÍA RÁPIDA DE MODIFICACIÓN (CARGA DE ASSETS):
+-----------------------------------------------------------------------------------------
+CLASE / SECCIÓN         | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. CONFIGURACIÓN        | __init__              | Rutas y Motores.
+   (Rutas y Audio)      | - self.ruta_img       | - Cambiar carpeta de imágenes ("img/").
+                        | - pygame.mixer.init() | - Inicializa el motor de audio.
+-----------------------------------------------------------------------------------------
+2. LISTA DE IMÁGENES    | cargar_todos()        | **AQUÍ AGREGAS/CAMBIAS SPRITES**
+   (El Inventario)      | - self.cargar(...)    | Formato: ('clave', "archivo.png", (W, H))
+                        |                       |
+                        |   A. FONDOS/UI        | - Cambiar tamaño (ancho, alto) de cajas.
+                        |   B. PERSONAJES       | - Cambiar "soldado1.png" por tu archivo.
+                        |   C. PANTALLAS FINAL  | - "victoria_final" y "game_over".
+                        |   D. ICONOS/ESTADOS   | - Proyectiles y efectos (fuego/sangre).
+-----------------------------------------------------------------------------------------
+3. AUDIO                | cargar_todos()        | Carga de SFX (Efectos cortos).
+                        | - cargar_sonido(...)  | - Vincula una clave con la ruta de config.
+                        |-----------------------|----------------------------------------
+                        | cargar_sonido()       | Ajustes del archivo de audio.
+                        | - sonido.set_volume   | - Cambiar volumen (0.0 a 1.0).
+-----------------------------------------------------------------------------------------
+4. SISTEMA DE ERRORES   | cargar()              | Qué pasa si falta una imagen.
+   (Seguridad)          | - try / except        | - Si falla, crea un cuadro MAGENTA.
+                        | - surf.fill(...)      | - Cambiar color del placeholder error.
+-----------------------------------------------------------------------------------------
 """
 
 class AlmacenRecursos:
@@ -76,7 +93,7 @@ class AlmacenRecursos:
         self.cargar('jugador2_dano', "soldado2_dano.png", (300, 300)) 
 
         # Imagen especial para la pantalla de victoria.
-        self.cargar('victoria_final', "vip_victoria.png", (1000, 650)) # Ojo: Asegúrate que el nombre coincida con tu carpeta
+        self.cargar('victoria_final', "victoria_final.png", (1000, 650)) # Ojo: Asegúrate que el nombre coincida con tu carpeta
 
         #imagen especial para la pantalla de derrota.
         self.cargar('game_over', 'game_over.png', (1000, 650))

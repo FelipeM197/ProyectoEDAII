@@ -10,37 +10,81 @@ from recursos import AlmacenRecursos
 from sistema_guardado import SistemaGuardado
 
 """
-PUNTO DE ENTRADA PRINCIPAL (MAIN LOOP)
---------------------------------------
-Aquí es donde ensamblo todas las piezas del rompecabezas.
-Este archivo orquesta el bucle infinito del juego, escucha el teclado
-y coordina los turnos entre el jugador y la IA.
+PUNTO DE ENTRADA PRINCIPAL (ORQUESTADOR DEL BUCLE)
 
-INDICE RÁPIDO:
---------------
-Línea 25  -> Configuración e Inicialización de objetos
-Línea 65  -> Bucle Principal (While True)
-Línea 70  -> A. Manejo de Eventos (Teclado)
-Línea 105 -> Lógica de cambio de turno (La parte difícil)
-Línea 155 -> Ejecución de habilidades del jugador
-Línea 180 -> B. Condiciones de Victoria/Derrota
-Línea 190 -> C. Procesamiento de efectos pasivos (Fuego/Sangrado)
-Línea 215 -> D. Inteligencia Artificial del Boss
-Línea 250 -> E. Renderizado final
+GUÍA RÁPIDA DE MODIFICACIÓN (FLUJO Y CONTROLES):
+-----------------------------------------------------------------------------------------
+SECCIÓN / LÓGICA        | MÉTODO / VARIABLE     | ACCIÓN / CÓMO MODIFICAR
+-----------------------------------------------------------------------------------------
+1. CONFIGURACIÓN INICIAL| main() -> pygame.init | Arranque del motor.
+   (Música y Objetos)   | - mixer.music.load    | - Cambiar música o volumen (0.3).
+                        | - p1, p2, jefe        | - Instanciación de objetos iniciales.
+-----------------------------------------------------------------------------------------
+2. INTERFAZ DE TEXTO    | obtener_texto_habil.. | Formatea el menú de ataques.
+   (UI Dinámica)        | - txt += f"[{idx}]"   | - Cambiar cómo se ven las opciones
+                        |                       |   (Ej: "[1] Disparo" vs "1. Disparo").
+                        | - costo // 2          | - Visualización del descuento 'Motivado'.
+-----------------------------------------------------------------------------------------
+3. SISTEMA DE GUARDADO  | if datos_cargados:    | Lógica al detectar 'savegame.json'.
+   (Carga al inicio)    | - turno_jugador       | - Restaura quién tenía el turno.
+                        | - esperando_continuar | - Fuerza una pausa al cargar.
+-----------------------------------------------------------------------------------------
+4. CONTROLES (INPUT)    | Bucle for evento...   | Mapeo de Teclado.
+   (Jugador)            | - K_SPACE             | - Avanzar texto / Confirmar turno.
+                        | - K_p / K_UP / K_DOWN | - Control del Menú de Pausa.
+                        | - K_1, K_2... K_q     | - Vincular teclas a habilidades.
+                        |                       |   (Aquí añades cheats si quieres).
+-----------------------------------------------------------------------------------------
+5. TURNO DEL JUGADOR    | if turno_jugador...   | Lógica de disparo.
+   (Acción)             | - gastar_energia()    | - Verifica si tienes maná.
+                        | - ejecutar_habilidad()| - Llama al árbitro (sistema_combate).
+-----------------------------------------------------------------------------------------
+6. TURNO DEL JEFE (IA)  | if not turno_jugador  | Lógica del enemigo.
+   (Cerebro)            | - actualizar_estado() | - Define si está Furioso/Defensivo.
+                        | - seleccionar_...()   | - Ejecuta Algoritmo de Prim (Estrategia).
+                        | - animar_proyectil()  | - **IMPORTANTE**: Aquí se eligen los
+                        |                       |   gráficos de los ataques del jefe.
+-----------------------------------------------------------------------------------------
+7. FINAL DEL TURNO      | if estado == "JUEGO"  | Gestión de Estados Pasivos.
+   (Sangrado/Fuego)     | - procesar_efectos... | - Aplica daño por quemadura al inicio
+                        |                       |   del turno (antes de atacar).
+-----------------------------------------------------------------------------------------
+8. RENDERIZADO          | Bloque final if/elif  | Dibuja la escena según estado.
+   (Draw Loop)          | - dibujar_interfaz    | - Mantiene actualizada la pantalla.
+                        | - dibujar_menu_pausa  | - Dibuja la capa superior (Overlay).
+-----------------------------------------------------------------------------------------
 """
 
 def obtener_texto_habilidades(personaje):
-    """
-    Pequeña utilidad para formatear el menú de ataques en la caja de texto.
-    Crea un string limpio mostrando qué tecla [1, 2, 3...] activa qué poder.
-    """
+    # Empiezo el texto mostrando la habilidad de emergencia que siempre es gratis y accesible.
     txt = "[Q] Golpe Táctico (0 EP)\n"
+    
+    # Uso enumerate para recorrer la lista porque necesito tener al mismo tiempo 
+    # el índice (para saber qué tecla asignar: 1, 2, 3...) y el objeto de la 
+    # habilidad para sacar sus datos.
     for i, h in enumerate(personaje.habilidades):
         idx = i + 1
-        txt += f"[{idx}] {h.nombre} ({h.costo})   "
-        # Salto de línea cada 2 habilidades para que no se salga de la caja.
+        
+        # Si el personaje está motivado, calculo la mitad del costo al vuelo 
+        # para que el jugador vea el descuento real.
+        costo_visual = h.costo
+        if personaje.turnos_motivado > 0:
+            costo_visual = h.costo // 2
+        
+        # Armo la cadena de texto usando el costo visual calculado arriba en 
+        # lugar del valor estático.
+        txt += f"[{idx}] {h.nombre} ({costo_visual})   "
+        
+        # Acomodo el texto haciendo un salto de línea cada dos habilidades 
+        # para que no se salga de la caja de interfaz.
         if idx % 2 == 0:
             txt += "\n"
+            
+    # Si el buff sigue activo, agrego un pequeño indicador al 
+    # final para saber cuántos turnos de ventaja quedan.
+    if personaje.turnos_motivado > 0:
+        txt += f"\n[MOTIVADO: {personaje.turnos_motivado} turnos]"
+        
     return txt
 
 def main():
@@ -248,7 +292,10 @@ def main():
                                 esperando_continuar = True
                             else:
                                 # Mapeo de teclas a índices de la lista de habilidades
-                                if evento.key == pygame.K_q: habilidad = atk_basico
+                                if evento.key == pygame.K_q: 
+                                    habilidad = atk_basico
+                                    habilidad.dano = atacante.ataque_base 
+                                    
                                 elif evento.key == pygame.K_1: habilidad = atacante.habilidades[0]
                                 elif evento.key == pygame.K_2: habilidad = atacante.habilidades[1]
                                 elif evento.key == pygame.K_3: habilidad = atacante.habilidades[2]
@@ -319,51 +366,103 @@ def main():
             else:
                 pygame.time.delay(500)
                 
-                # 1. ACTUALIZAR ESTADO DE ÁNIMO (FSM)
-                # El grafo decide si está Normal, Furioso o Defensivo según HP y Estrés
+                # ACTUALIZAR ESTADO DE ÁNIMO 
+                # Primero reviso las variables vitales del jefe para ver si entra en Furia o se pone a la defensiva.
                 cerebro_comportamiento.actualizar_estado(jefe)
                 estado_boss = cerebro_comportamiento.estado_actual
                 bonus = cerebro_comportamiento.obtener_bonificadores()
                 
+                # Aquí verifico si el jefe viene "cebado" de un turno anterior.
+                # Si activó un boost de ataque recientemente, aplico el multiplicador extra y descuento un turno del contador.
+                mult_extra_ataque = 1.0
+                if jefe.turnos_buff_ataque > 0:
+                    mult_extra_ataque = 1.3 
+                    jefe.turnos_buff_ataque -= 1 
+
+                # Armo el mensaje de cabecera, avisando si hay buffs activos para que el jugador sepa por qué le pegan tan duro.
                 mensaje_log = f"Turno: {jefe.nombre} [{estado_boss}]"
+                if jefe.turnos_buff_ataque > 0: mensaje_log += " (ATK UP)"
+                if jefe.turnos_buff_defensa > 0: mensaje_log += " (DEF UP)"
                 
-                # 2. SELECCIONAR ESTRATEGIA ÓPTIMA (ALGORITMO DE PRIM)
-                # El grafo elige el mejor nodo (A, B... F) basándose en costos y elegibilidad
+                #  SELECCIONAR ESTRATEGIA ÓPTIMA (ALGORITMO DE PRIM)
+                # Le pregunto al grafo cuál es el siguiente movimiento más eficiente según los costos.
                 nodo_ataque = cerebro_estrategia.seleccionar_siguiente_ataque(jefe)
                 
-                # 3. EJECUTAR LA ACCIÓN DEL NODO
-                # Traducimos los datos abstractos del nodo a acciones del juego
-                dmg_base = jefe.ataque_base * bonus["ataque"]
+                # EJECUTAR LA ACCIÓN DEL NODO
+                # Calculo el daño base combinando su estadística natural, el estado de ánimo (Furia/Normal) y el buff temporal si lo tuviera.
+                dmg_base = jefe.ataque_base * bonus["ataque"] * mult_extra_ataque
                 
-                # Definir objetivo (Random por ahora)
+                # Elijo una víctima al azar entre los que sigan vivos.
                 candidatos = [p for p in equipo if p.esta_vivo()]
                 objetivo = random.choice(candidatos) if candidatos else p1
                 
-                # Lógica según el tipo de efecto del nodo (Tabla 4 PDF)
+                # Extraigo los datos del nodo elegido para saber qué hacer.
                 efecto = nodo_ataque.efecto_tipo
-                valor = nodo_ataque.valor_efecto # Porcentaje (ej. 0.05)
+                valor = nodo_ataque.valor_efecto 
                 
                 msg_accion = ""
                 dano_final = 0
                 
                 if "dano" in efecto:
-                    # Daño porcentual basado en la vida MAX del objetivo (o ataque del boss)
-                    # Aquí usaremos el ataque del boss escalado por el porcentaje del nodo
-                    factor_dano = 1.0 + valor # Ej: 0.20 -> 120% daño
+                    # Calculo el daño final sumando el porcentaje de potencia de la habilidad (ej. Molotov pega más que Bala).
+                    factor_dano = 1.0 + valor 
                     dano_final = int(dmg_base * factor_dano)
                     
-                    res = objetivo.recibir_dano(dano_final)
+                    # Aplico el daño y capturo el mensaje por si el jugador tenía un escudo activo.
+                    msg_escudo = objetivo.recibir_dano(dano_final)
                     msg_accion = f"¡{nodo_ataque.nombre}!\nDaño: {dano_final}"
+                    if isinstance(msg_escudo, str) and "bloqueó" in msg_escudo:
+                         msg_accion += "\n(Bloqueado)"
+
+                    # Aquí está la clave: reviso si este ataque trae un efecto secundario (como fuego o cuchillo)
+                    # para aplicárselo al jugador y actualizar su estado.
+                    codigo_evento = nodo_ataque.efecto_estado
                     
-                    # Animación
-                    motor.animar_proyectil(p1, p2, jefe, msg_accion, (950, 200), (300, 380), 'proy_molotov')
-                    motor.animar_impacto(p1, p2, jefe, msg_accion, objetivo, "FUEGO")
+                    if codigo_evento:
+                        # El grafo de efectos me dice en qué se convierte el jugador (ej. Normal + Fuego -> Quemado).
+                        nuevo_estado = grafo_estados.transicion(objetivo.estado_actual, codigo_evento)
+                        
+                        if nuevo_estado != objetivo.estado_actual:
+                            objetivo.estado_actual = nuevo_estado
+                            msg_accion += f"\n¡{objetivo.nombre} está {nuevo_estado}!"
+                            
+                            # Si logré quemarlo, inicio el contador para que sufra daño en los siguientes turnos.
+                            if nuevo_estado == "Quemado":
+                                objetivo.turnos_quemado = config.DURACION_QUEMADO 
+                    
+                    # Elijo la animación correcta dependiendo de si lo quemé, lo corté o fue un golpe seco.
+                    nombre_ataque = nodo_ataque.nombre
+                    sprite_proyectil = 'proy_molotov' # Imagen por defecto
+                    
+                    if "Bala" in nombre_ataque:
+                        sprite_proyectil = 'proy_disparo'
+                    elif "Cuchillo" in nombre_ataque:
+                        sprite_proyectil = 'proy_cuchillo'
+                    
+                    #  SELECCIÓN DE EFECTO DE IMPACTO (Fuego, Sangre o Normal)
+                    tipo_anim = "FUEGO" if nodo_ataque.efecto_estado == "fuego" else "SANGRE" if nodo_ataque.efecto_estado == "cuchillo" else "NORMAL"
+                    
+                    # EJECUCIÓN CON LA VARIABLE DINÁMICA
+                    # Usamos 'sprite_proyectil' en lugar del texto fijo
+                    motor.animar_proyectil(p1, p2, jefe, msg_accion, (950, 200), (300, 380), sprite_proyectil)
+                    motor.animar_impacto(p1, p2, jefe, msg_accion, objetivo, tipo_anim)
 
                 if "cura" in efecto:
                     cura = int(jefe.vida_max * valor)
                     jefe.curar(cura)
                     msg_accion += f"\nSe cura {cura} HP."
                     motor.animar_impacto(p1, p2, jefe, msg_accion, jefe, "CURACION")
+
+                # Por último, si la habilidad que usó era de soporte (como Táctica), activo los contadores
+                # para que el jefe quede potenciado durante los próximos 3 turnos.
+                if nodo_ataque.boost == "ataque":
+                    jefe.turnos_buff_ataque = 3 
+                    msg_accion += "\n¡Sube su ATAQUE!"
+                    
+                if nodo_ataque.boost == "defensa":
+                    jefe.turnos_buff_defensa = 3 
+                    msg_accion += "\n¡Sube su DEFENSA!"
+                    motor.animar_impacto(p1, p2, jefe, msg_accion, jefe, "ESCUDO")
 
                 # Actualizar log y pasar turno
                 mensaje_log = f"{mensaje_log}\n{msg_accion}"
