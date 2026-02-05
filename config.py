@@ -69,13 +69,13 @@ OPCIONES_PAUSA = ["CONTINUAR", "GUARDAR", "SALIR"]
 
 # --- JUGADOR 1 (DPS / Atacante) ---
 P1_NOMBRE = "Jugador 1"
-P1_VIDA_MAX = 100     # Vida total actual del personaje.
+P1_VIDA_MAX = 100   # Vida total actual del personaje.
 P1_ATAQUE = 20       # Daño base que hago con ataques normales.
 P1_ENERGIA_MAX = 100  
 
 # --- JUGADOR 2 (Tanque / Soporte) ---
 P2_NOMBRE = "Jugador 2"
-P2_VIDA_MAX = 150     # Vida total actual del segundo personaje.
+P2_VIDA_MAX = 100  # Vida total actual del segundo personaje.
 P2_ATAQUE = 15       # Daño base un poco más bajo que el P1.
 P2_ENERGIA_MAX = 150 # Reservo esto por si implemento maná luego.
 
@@ -214,9 +214,9 @@ NIVELES = [
     {
         "fondo": "escenario.png",       # Archivo de imagen para el fondo.
         "boss_nombre": "Donald T.",
-        "boss_vida": 150,             
+        "boss_vida": 100,             
         "boss_ataque": 15,              
-        "dialogo_entrada": "¡No pasaran mi muro!"
+        #"dialogo_entrada": "holi"
     }
 ]
 
